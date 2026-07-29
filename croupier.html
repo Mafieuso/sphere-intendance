@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Salle Croupier — Sphère de l'Intendance</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Cinzel+Decorative:wght@700&family=Noto+Sans+JP:wght@200;300;400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/theme.css">
+<style>
+.tables-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;}
+.table-card{background:var(--panel);border:1px solid var(--border);border-top:2px solid var(--gc,var(--gold));border-radius:12px;
+  padding:26px 20px;text-align:center;transition:.25s;}
+.table-card:hover{transform:translateY(-5px);box-shadow:0 16px 40px rgba(0,0,0,.6);border-color:var(--gc,var(--gold));}
+.table-card .ti{font-size:2.2rem;margin-bottom:10px;}
+.table-card .tn{font-family:'Cinzel',serif;font-size:.85rem;letter-spacing:2px;color:var(--text);margin-bottom:6px;}
+.table-card .td{font-size:.65rem;color:var(--text-muted);line-height:1.5;margin-bottom:14px;}
+</style>
+</head>
+<body>
+<div class="bg-fx"></div>
+<canvas id="embers"></canvas>
+<div id="grain"></div>
+<div id="vignette"></div>
+<div class="particles" style="position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden"></div>
+<div id="toast-container"></div>
+
+<nav id="sidebar">
+  <div class="sidebar-logo">
+    <span class="sidebar-ornament">⛩</span>
+    <div class="sidebar-logo-title">SPHÈRE DE<br>L'INTENDANCE</div>
+    <div class="sidebar-logo-sub">Salle de Jeu</div>
+  </div>
+  <ul class="nav-list">
+    <li class="nav-item"><a class="nav-btn active" href="croupier.html"><span class="nav-icon">🎩</span><span>Salle Croupier</span></a></li>
+    <li class="nav-item"><a class="nav-btn" href="spectateur.html"><span class="nav-icon">👁</span><span>Salle en Direct</span></a></li>
+    <li class="nav-item"><a class="nav-btn" href="index.html"><span class="nav-icon">⛩</span><span>Accueil</span></a></li>
+  </ul>
+  <div class="sidebar-user" id="sidebarUser">
+    <div class="su-name" id="suName">—</div>
+    <div class="su-role" id="suRole">—</div>
+    <button class="btn btn-ghost btn-sm btn-block" onclick="logout()">Quitter</button>
+  </div>
+</nav>
+
+<div id="main">
+  <header id="topbar">
+    <div class="page-title" style="font-size:1.05rem;padding-bottom:8px;margin:0;">Salle Croupier</div>
+  </header>
+  <main id="content">
+    <div class="page-sub" style="margin-top:-14px;">Choisis une table à animer</div>
+    <div class="tables-grid">
+      <a class="table-card" href="games/roulette.html" style="--gc:#b3121a"><div class="ti">🎡</div><div class="tn">Roulette Européenne</div><div class="td">Ouvre les mises, lance la roue, les gains sont réglés automatiquement.</div></a>
+      <a class="table-card" href="games/blackjack.html" style="--gc:#c9a227"><div class="ti">🃏</div><div class="tn">Blackjack</div><div class="td">Distribue les cartes, révèle le croupier, résous la manche.</div></a>
+      <a class="table-card" href="games/crash.html" style="--gc:#1fae7c"><div class="ti">📈</div><div class="tn">Ascension Démoniaque</div><div class="td">Ouvre une manche — le décollage et l'encaissement sont gérés par les joueurs.</div></a>
+    </div>
+  </main>
+</div>
+
+<script type="module">
+import { initFx } from "./assets/js/fx.js";
+import { requireRole, renderStaffBadge } from "./assets/js/session.js";
+initFx();
+const staff = requireRole(["croupier"]);
+if(staff){ renderStaffBadge(); }
+</script>
+</body>
+</html>

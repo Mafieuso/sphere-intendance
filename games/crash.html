@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ascension Démoniaque — Sphère de l'Intendance</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Cinzel+Decorative:wght@700&family=Noto+Sans+JP:wght@200;300;400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/css/theme.css">
+<style>
+.wrap{max-width:640px;margin:0 auto;padding:30px 20px 80px;position:relative;z-index:2;}
+.gtop{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;gap:10px;flex-wrap:wrap;}
+.balance-pill{font-family:'Cinzel',serif;font-size:.85rem;color:var(--gold2);border:1px solid var(--border-h);padding:8px 16px;border-radius:20px;background:rgba(201,162,39,.05);}
+.crash-stage{height:220px;border-radius:12px;background:linear-gradient(180deg,#160505,#050202);border:1px solid rgba(201,162,39,.2);
+  display:flex;align-items:center;justify-content:center;flex-direction:column;position:relative;overflow:hidden;}
+.crash-mult{font-family:'Cinzel',serif;font-size:3.2rem;font-weight:900;color:var(--gold2);text-shadow:0 0 30px rgba(240,208,96,.4);transition:color .2s;}
+.crash-mult.crashed{color:#ff4444;text-shadow:0 0 30px rgba(255,50,50,.5);}
+.crash-mult.cashed{color:#5ee0af;text-shadow:0 0 30px rgba(31,174,124,.5);}
+.crash-status{font-family:'Cinzel',serif;font-size:.65rem;letter-spacing:3px;color:var(--text-muted);text-transform:uppercase;margin-top:8px;}
+.flame-track{position:absolute;bottom:0;left:0;right:0;height:6px;background:linear-gradient(to right,#7a0e14,#c9a227,#7a0e14);opacity:.4;}
+.controls-row{display:flex;gap:10px;margin-top:18px;align-items:flex-end;}
+.controls-row .form-group{flex:1;margin-bottom:0;}
+.players-list{margin-top:16px;display:flex;flex-direction:column;gap:6px;}
+.pl-row{display:flex;justify-content:space-between;font-size:.7rem;padding:8px 12px;background:rgba(255,255,255,.02);border-radius:6px;border:1px solid rgba(255,255,255,.05);}
+.pl-row.win{border-color:rgba(31,174,124,.3);color:#5ee0af;}
+.pl-row.pending{color:var(--text-muted);}
+</style>
+</head>
+<body>
+<div class="bg-fx"></div><canvas id="embers"></canvas><div id="grain"></div><div id="vignette"></div>
+<div class="particles" style="position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden"></div>
+<div id="toast-container"></div>
+
+<div class="wrap">
+  <div class="gtop">
+    <a href="../carte.html" class="btn btn-ghost btn-sm">← Ma Carte</a>
+    <div class="balance-pill yen-tag" id="balancePill">—</div>
+  </div>
+  <div class="page-title" style="font-size:1.15rem;padding-bottom:8px;">📈 Ascension Démoniaque</div>
+  <div class="page-sub">Encaisse avant le crash — Mise partagée multijoueur</div>
+
+  <div class="panel">
+    <div class="crash-stage">
+      <div class="flame-track"></div>
+      <div class="crash-mult" id="crashMult">1.00×</div>
+      <div class="crash-status" id="crashStatus">En attente d'une manche…</div>
+    </div>
+
+    <div class="controls-row">
+      <div class="form-group"><label class="form-label">Mise (¥)</label><input class="form-input" id="betAmount" type="number" min="1" value="30"></div>
+      <button class="btn btn-jade" id="btnJoin">Miser sur la Manche</button>
+    </div>
+    <div class="croupier-controls" style="display:flex;gap:10px;margin-top:12px;">
+      <button class="btn btn-gold" id="btnNewRound">Nouvelle Manche</button>
+      <button class="btn btn-solid" id="btnLaunch" style="display:none">🚀 Décoller</button>
+      <button class="btn btn-crimson" id="btnCashout" style="display:none">💰 Encaisser</button>
+    </div>
+
+    <div class="players-list" id="playersList"></div>
+  </div>
+</div>
+
+<script type="module">
+import { initFx } from "../assets/js/fx.js";
+import { toast } from "../assets/js/toast.js";
+import { requirePlayerCard } from "../assets/js/playerSession.js";
+import { getCard, adjustBalance, isExpired } from "../assets/js/cards.js";
+import {
+  db, doc, getDoc, setDoc, collection, addDoc, updateDoc, query, where, getDocs,
+  onSnapshot, runTransaction, serverTimestamp
+} from "../assets/js/firebase-init.js";
+
+initFx();
+const session = requirePlayerCard();
+const TABLE_ID = "crash-1";
+const tableRef = doc(db, "tables", TABLE_ID);
+
+refreshBalance();
+async function refreshBalance(){
+  const card = await getCard(session.id);
+  document.getElementById("balancePill").textContent = "¥ " + (card?.balance ?? 0);
+}
+
+function genCrashPoint(){
+  const r = Math.random();
+  return Math.max(1, Math.floor((0.97 / (1 - r)) * 100) / 100);
+}
+function multiplierAt(elapsedSec){
+  return 1 + Math.pow(elapsedSec, 1.32) * 0.09;
+}
+
+let myBetId = null, myCashedOut = false, animTimer = null, currentTable = null;
+
+async function ensureTable(){
+  const snap = await getDoc(tableRef);
+  if(!snap.exists()){
+    await setDoc(tableRef, { status: "waiting", roundId: 1, crashPoint: genCrashPoint(), startedAt: null, updatedAt: serverTimestamp() });
+  }
+}
+ensureTable();
+
+document.getElementById("btnNewRound").addEventListener("click", async () => {
+  let opened = false;
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(tableRef);
+    const t = snap.data();
+    if(t && (t.status === "running" || t.status === "waiting")) return; // manche déjà en cours
+    tx.set(tableRef, { status: "waiting", roundId: (t?.roundId||0) + 1, crashPoint: genCrashPoint(), startedAt: null, updatedAt: serverTimestamp() });
+    opened = true;
+  });
+  toast(opened ? "Nouvelle manche ouverte — placez vos mises." : "Une manche est déjà en cours.", opened ? "success" : "warn");
+});
+
+document.getElementById("btnLaunch").addEventListener("click", async () => {
+  const snap = await getDoc(tableRef);
+  const t = snap.data();
+  if(!t || t.status !== "waiting") return;
+  await setDoc(tableRef, { ...t, status: "running", startedAt: serverTimestamp(), updatedAt: serverTimestamp() });
+});
+
+document.getElementById("btnJoin").addEventListener("click", async () => {
+  if(!currentTable || currentTable.status !== "waiting") return toast("Attends l'ouverture des mises.", "warn");
+  const amount = parseInt(document.getElementById("betAmount").value, 10);
+  if(!amount || amount <= 0) return toast("Mise invalide.", "warn");
+  const card = await getCard(session.id);
+  if(isExpired(card)) return toast("Carte expirée.", "error");
+  if(card.balance < amount) return toast("Solde insuffisant.", "warn");
+
+  await adjustBalance({ cardId: session.id, amount: -amount, type: "mise", gameId: "crash", note: `Mise ¥${amount} — Ascension Démoniaque` });
+  const ref = await addDoc(collection(db, "tables", TABLE_ID, "bets"), {
+    roundId: currentTable.roundId, cardId: session.id, steamId: session.steamId, playerName: session.playerName,
+    amount, cashedOut: false, cashOutMultiplier: null, createdAt: serverTimestamp()
+  });
+  myBetId = ref.id; myCashedOut = false;
+  toast("Mise engagée pour la prochaine ascension.", "success");
+  refreshBalance();
+});
+
+document.getElementById("btnCashout").addEventListener("click", async () => {
+  if(!myBetId || myCashedOut || !currentTable || currentTable.status !== "running") return;
+  const elapsed = (Date.now() - currentTable.startedAt.toMillis()) / 1000;
+  const mult = multiplierAt(elapsed);
+  if(mult >= currentTable.crashPoint) return; // déjà crashé
+  myCashedOut = true;
+  const bet = (await getDocs(query(collection(db,"tables",TABLE_ID,"bets"), where("roundId","==",currentTable.roundId), where("cardId","==",session.id)))).docs[0];
+  if(!bet) return;
+  const amount = bet.data().amount;
+  const payout = Math.floor(amount * mult);
+  await updateDoc(doc(db,"tables",TABLE_ID,"bets",bet.id), { cashedOut: true, cashOutMultiplier: mult });
+  await adjustBalance({ cardId: session.id, amount: payout, type: "gain", gameId: "crash", note: `Encaissé à ${mult.toFixed(2)}×` });
+  toast(`Encaissé à ${mult.toFixed(2)}× — +¥${payout}`, "success");
+  document.getElementById("crashMult").classList.add("cashed");
+  refreshBalance();
+});
+
+/* ── Boucle d'animation locale du multiplicateur ── */
+function stopAnim(){ if(animTimer){ cancelAnimationFrame(animTimer); animTimer = null; } }
+function startAnim(startedAtMs, crashPoint){
+  stopAnim();
+  const el = document.getElementById("crashMult");
+  el.classList.remove("crashed","cashed");
+  function tick(){
+    const elapsed = (Date.now() - startedAtMs) / 1000;
+    const mult = multiplierAt(elapsed);
+    if(mult >= crashPoint){
+      el.textContent = crashPoint.toFixed(2) + "×";
+      el.classList.add("crashed");
+      handleLocalCrash(crashPoint);
+      return;
+    }
+    el.textContent = mult.toFixed(2) + "×";
+    animTimer = requestAnimationFrame(tick);
+  }
+  tick();
+}
+
+let crashHandled = false;
+async function handleLocalCrash(crashPoint){
+  if(crashHandled) return; crashHandled = true;
+  try{
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(tableRef);
+      const t = snap.data();
+      if(!t || t.status !== "running") return;
+      tx.update(tableRef, { status: "crashed", updatedAt: serverTimestamp() });
+    });
+  }catch(e){ /* un autre client a peut-être déjà résolu le crash */ }
+}
+
+/* ── Sync live table ── */
+onSnapshot(tableRef, (snap) => {
+  const t = snap.data();
+  if(!t) return;
+  const prevRound = currentTable?.roundId;
+  currentTable = t;
+  const statusLine = document.getElementById("crashStatus");
+  const btnNew = document.getElementById("btnNewRound");
+  const btnLaunch = document.getElementById("btnLaunch");
+  const btnCashout = document.getElementById("btnCashout");
+  const btnJoin = document.getElementById("btnJoin");
+
+  if(t.roundId !== prevRound){ myBetId = null; myCashedOut = false; crashHandled = false; }
+
+  if(t.status === "waiting"){
+    stopAnim();
+    document.getElementById("crashMult").textContent = "1.00×";
+    document.getElementById("crashMult").classList.remove("crashed","cashed");
+    statusLine.textContent = "Mises ouvertes — en attente du décollage";
+    btnNew.style.display = "none"; btnLaunch.style.display = "inline-flex"; btnCashout.style.display = "none"; btnJoin.disabled = false;
+  }
+  if(t.status === "running"){
+    statusLine.textContent = "En vol… encaisse avant le crash !";
+    btnNew.style.display = "none"; btnLaunch.style.display = "none";
+    btnCashout.style.display = myBetId && !myCashedOut ? "inline-flex" : "none";
+    btnJoin.disabled = true;
+    if(t.startedAt) startAnim(t.startedAt.toMillis(), t.crashPoint);
+  }
+  if(t.status === "crashed"){
+    stopAnim();
+    statusLine.textContent = `Crash à ${t.crashPoint.toFixed(2)}× — Manche #${t.roundId}`;
+    document.getElementById("crashMult").textContent = t.crashPoint.toFixed(2) + "×";
+    document.getElementById("crashMult").classList.add("crashed");
+    btnNew.style.display = "inline-flex"; btnLaunch.style.display = "none"; btnCashout.style.display = "none"; btnJoin.disabled = true;
+    refreshBalance();
+  }
+});
+
+/* Liste des participants de la manche en cours */
+onSnapshot(collection(db, "tables", TABLE_ID, "bets"), (snap) => {
+  if(!currentTable) return;
+  const bets = snap.docs.map(d=>d.data()).filter(b => b.roundId === currentTable.roundId);
+  const el = document.getElementById("playersList");
+  if(!bets.length){ el.innerHTML = ""; return; }
+  el.innerHTML = bets.map(b => `<div class="pl-row ${b.cashedOut?'win':'pending'}">
+    <span>${b.playerName}</span>
+    <span>${b.cashedOut ? ('✓ '+b.cashOutMultiplier.toFixed(2)+'×') : ('¥'+b.amount+' en jeu')}</span>
+  </div>`).join('');
+});
+</script>
+</body>
+</html>

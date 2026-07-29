@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Caisse — Sphère de l'Intendance</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Cinzel+Decorative:wght@700&family=Noto+Sans+JP:wght@200;300;400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/theme.css">
+<style>
+.pin-reveal{background:rgba(201,162,39,.06);border:1px solid rgba(201,162,39,.25);border-radius:8px;padding:16px 18px;margin-top:14px;text-align:center;}
+.pin-reveal .pv{font-family:'Cinzel',serif;font-size:1.3rem;letter-spacing:5px;color:var(--gold2);margin-top:6px;}
+.card-result{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:18px 20px;
+  background:var(--panel);border:1px solid var(--border);border-radius:10px;margin-top:16px;}
+.card-result .cr-name{font-family:'Cinzel',serif;font-size:1.1rem;color:var(--gold);letter-spacing:1px;}
+.card-result .cr-steam{font-size:.68rem;color:var(--text-muted);margin-top:2px;}
+.card-result .cr-balance{font-family:'Cinzel',serif;font-size:1.6rem;font-weight:900;color:var(--gold2);text-shadow:0 0 16px rgba(240,208,96,.4);}
+.tx-form{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;align-items:flex-end;}
+.tx-form .form-group{flex:1;min-width:130px;margin-bottom:0;}
+</style>
+</head>
+<body>
+<div class="bg-fx"></div>
+<canvas id="embers"></canvas>
+<div id="grain"></div>
+<div id="vignette"></div>
+<div class="particles" style="position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden"></div>
+<div id="toast-container"></div>
+
+<nav id="sidebar">
+  <div class="sidebar-logo">
+    <span class="sidebar-ornament">⛩</span>
+    <div class="sidebar-logo-title">SPHÈRE DE<br>L'INTENDANCE</div>
+    <div class="sidebar-logo-sub">Poste de Caisse</div>
+  </div>
+  <ul class="nav-list">
+    <li class="nav-item"><a class="nav-btn active" href="hote.html"><span class="nav-icon">💰</span><span>Caisse</span></a></li>
+    <li class="nav-item"><a class="nav-btn" href="spectateur.html"><span class="nav-icon">👁</span><span>Salle en Direct</span></a></li>
+    <li class="nav-item"><a class="nav-btn" href="index.html"><span class="nav-icon">⛩</span><span>Accueil</span></a></li>
+  </ul>
+  <div class="sidebar-user" id="sidebarUser">
+    <div class="su-name" id="suName">—</div>
+    <div class="su-role" id="suRole">—</div>
+    <button class="btn btn-ghost btn-sm btn-block" onclick="logout()">Quitter</button>
+  </div>
+</nav>
+
+<div id="main">
+  <header id="topbar">
+    <div class="page-header" style="margin:0;">
+      <div><div class="page-title" style="font-size:1.05rem;padding-bottom:8px;">Poste de Caisse</div></div>
+    </div>
+  </header>
+  <main id="content">
+
+    <div class="panel" style="margin-bottom:24px;">
+      <div class="panel-title">🔍 Rechercher / Créer une Carte</div>
+      <div class="form-group">
+        <label class="form-label">Steam ID 64</label>
+        <input class="form-input" id="searchSteamId" placeholder="76561198XXXXXXXXX">
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="btn btn-gold" id="btnSearch">Rechercher</button>
+        <button class="btn btn-ghost" id="btnShowCreate">+ Nouvelle carte</button>
+      </div>
+
+      <div id="createBlock" style="display:none;margin-top:18px;border-top:1px solid var(--border);padding-top:18px;">
+        <div class="form-group">
+          <label class="form-label">Nom du joueur (pseudo RP)</label>
+          <input class="form-input" id="newPlayerName" placeholder="Nom du personnage">
+        </div>
+        <button class="btn btn-solid" id="btnCreate">Créer la carte</button>
+        <div id="pinRevealBox"></div>
+      </div>
+
+      <div id="cardResultBox"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">📜 Transactions Récentes</div>
+      <div id="txLog"><div class="loader"></div></div>
+    </div>
+
+  </main>
+</div>
+
+<script type="module">
+import { initFx } from "./assets/js/fx.js";
+import { toast } from "./assets/js/toast.js";
+import { requireRole, renderStaffBadge, getSession } from "./assets/js/session.js";
+import { findCardBySteamId, createCard, adjustBalance, isExpired, msUntilExpiration } from "./assets/js/cards.js";
+import { db, collection, query, orderBy, limit, onSnapshot } from "./assets/js/firebase-init.js";
+
+initFx();
+const staff = requireRole(["hote"]);
+if(staff){ renderStaffBadge(); }
+
+let currentCard = null;
+
+document.getElementById("btnShowCreate").addEventListener("click", () => {
+  document.getElementById("createBlock").style.display = "block";
+  const steamId = document.getElementById("searchSteamId").value.trim();
+  if(steamId) document.getElementById("newPlayerName").focus();
+});
+
+document.getElementById("btnSearch").addEventListener("click", async () => {
+  const steamId = document.getElementById("searchSteamId").value.trim();
+  if(!steamId) return toast("Entre un Steam ID.", "warn");
+  const card = await findCardBySteamId(steamId);
+  currentCard = card;
+  renderCardResult(card);
+});
+
+document.getElementById("btnCreate").addEventListener("click", async () => {
+  const steamId = document.getElementById("searchSteamId").value.trim();
+  const playerName = document.getElementById("newPlayerName").value.trim();
+  if(!steamId || !playerName) return toast("Steam ID et nom requis.", "warn");
+  try{
+    const { id, pin } = await createCard({ steamId, playerName, staff });
+    toast("Carte créée avec succès.", "success");
+    document.getElementById("pinRevealBox").innerHTML = `
+      <div class="pin-reveal">
+        <div class="form-label">Code PIN de la carte (à transmettre au joueur)</div>
+        <div class="pv">${pin}</div>
+      </div>`;
+    currentCard = await findCardBySteamId(steamId);
+    renderCardResult(currentCard);
+  }catch(e){
+    toast(e.message, "error");
+  }
+});
+
+function renderCardResult(card){
+  const box = document.getElementById("cardResultBox");
+  if(!card){
+    box.innerHTML = `<div class="empty-state"><div class="empty-icon">🀄</div><p>Aucune carte trouvée pour ce Steam ID.</p></div>`;
+    return;
+  }
+  const expired = isExpired(card);
+  box.innerHTML = `
+    <div class="card-result">
+      <div>
+        <div class="cr-name">${card.playerName}</div>
+        <div class="cr-steam">${card.steamId} · <span class="badge ${expired?'badge-expired':'badge-active'}">${expired?'Expirée':'Active'}</span></div>
+      </div>
+      <div class="cr-balance yen-tag">${card.balance}</div>
+    </div>
+    <div class="tx-form">
+      <div class="form-group">
+        <label class="form-label">Montant (¥ tokens)</label>
+        <input class="form-input" id="txAmount" type="number" min="1" placeholder="100">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Note (optionnel)</label>
+        <input class="form-input" id="txNote" placeholder="Échange de Yens RP">
+      </div>
+      <button class="btn btn-jade" id="btnDeposit">+ Déposer</button>
+      <button class="btn btn-crimson" id="btnWithdraw">− Retirer</button>
+    </div>
+  `;
+  document.getElementById("btnDeposit").addEventListener("click", () => doTx(card.id, 1));
+  document.getElementById("btnWithdraw").addEventListener("click", () => doTx(card.id, -1));
+}
+
+async function doTx(cardId, sign){
+  const amountRaw = parseInt(document.getElementById("txAmount").value, 10);
+  const note = document.getElementById("txNote").value.trim();
+  if(!amountRaw || amountRaw <= 0) return toast("Montant invalide.", "warn");
+  try{
+    const balanceAfter = await adjustBalance({
+      cardId, amount: amountRaw * sign, type: sign > 0 ? "depot" : "retrait",
+      staff, note
+    });
+    toast(`${sign>0?'Dépôt':'Retrait'} effectué. Nouveau solde : ¥${balanceAfter}`, "success");
+    currentCard = await findCardBySteamId(currentCard.steamId);
+    renderCardResult(currentCard);
+  }catch(e){
+    toast(e.message, "error");
+  }
+}
+
+/* Flux de transactions récentes en direct */
+const q = query(collection(db, "transactions"), orderBy("createdAt", "desc"), limit(20));
+onSnapshot(q, (snap) => {
+  const el = document.getElementById("txLog");
+  if(snap.empty){ el.innerHTML = `<div class="empty-state"><p>Aucune transaction.</p></div>`; return; }
+  const typeColor = { depot:'#1fae7c', retrait:'#c9282f', mise:'#c9a227', gain:'#1fae7c', perte:'#c9282f' };
+  el.innerHTML = `<div class="log-list">${snap.docs.map(d => {
+    const t = d.data();
+    const c = typeColor[t.type] || '#c9a227';
+    const date = t.createdAt?.toDate ? t.createdAt.toDate().toLocaleString('fr-FR') : '—';
+    return `<div class="log-entry" style="--lc:${c}">
+      <span class="log-action">${t.type}</span>
+      <span class="log-detail"><strong>${t.playerName||t.steamId||'?'}</strong> — ${t.amount>0?'+':''}${t.amount}¥ ${t.staffName?('· par '+t.staffName):''}</span>
+      <span class="log-date">${date}</span>
+    </div>`;
+  }).join('')}</div>`;
+});
+</script>
+</body>
+</html>

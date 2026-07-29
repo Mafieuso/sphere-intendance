@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pile ou Face — Sphère de l'Intendance</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Cinzel+Decorative:wght@700&family=Noto+Sans+JP:wght@200;300;400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/css/theme.css">
+<style>
+.wrap{max-width:520px;margin:0 auto;padding:30px 20px 80px;position:relative;z-index:2;}
+.gtop{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;gap:10px;flex-wrap:wrap;}
+.balance-pill{font-family:'Cinzel',serif;font-size:.85rem;color:var(--gold2);border:1px solid var(--border-h);padding:8px 16px;border-radius:20px;background:rgba(201,162,39,.05);}
+.coin-stage{display:flex;align-items:center;justify-content:center;height:220px;perspective:800px;}
+.coin{width:150px;height:150px;border-radius:50%;position:relative;transform-style:preserve-3d;transition:transform 1.8s cubic-bezier(.2,.8,.3,1);
+  background:radial-gradient(circle at 35% 30%,#f5d870,#c9a227 55%,#8a6a10 100%);box-shadow:0 10px 40px rgba(0,0,0,.6),0 0 40px rgba(201,162,39,.2);
+  display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-size:2.4rem;color:#3a2a05;font-weight:900;}
+.coin.flipping{animation:coinSpin 1.8s cubic-bezier(.2,.8,.3,1);}
+@keyframes coinSpin{from{transform:rotateY(0)}to{transform:rotateY(1800deg)}}
+.choice-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:20px 0;}
+.choice-btn{padding:16px;border-radius:10px;border:2px solid rgba(255,255,255,.08);background:var(--panel);
+  font-family:'Cinzel',serif;letter-spacing:2px;color:var(--text-muted);transition:.2s;text-transform:uppercase;font-size:.72rem;}
+.choice-btn.selected{border-color:var(--gold);color:var(--gold);background:rgba(201,162,39,.08);box-shadow:0 0 20px rgba(201,162,39,.15);}
+.bet-row{display:flex;gap:10px;margin-top:16px;}
+.bet-row .form-group{flex:1;margin-bottom:0;}
+.result-banner{text-align:center;margin-top:18px;padding:14px;border-radius:8px;font-family:'Cinzel',serif;letter-spacing:2px;display:none;}
+.result-banner.win{display:block;background:rgba(31,174,124,.12);border:1px solid rgba(31,174,124,.35);color:#5ee0af;}
+.result-banner.loss{display:block;background:rgba(201,40,47,.12);border:1px solid rgba(201,40,47,.35);color:#ff8a8a;}
+</style>
+</head>
+<body>
+<div class="bg-fx"></div><canvas id="embers"></canvas><div id="grain"></div><div id="vignette"></div>
+<div class="particles" style="position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden"></div>
+<div id="toast-container"></div>
+
+<div class="wrap">
+  <div class="gtop">
+    <a href="../carte.html" class="btn btn-ghost btn-sm">← Ma Carte</a>
+    <div class="balance-pill yen-tag" id="balancePill">—</div>
+  </div>
+  <div class="page-title" style="font-size:1.15rem;padding-bottom:8px;">Pile ou Face</div>
+  <div class="page-sub">Mise à 1.9× — Choisis ton camp</div>
+
+  <div class="panel">
+    <div class="coin-stage"><div class="coin" id="coin">¥</div></div>
+    <div class="choice-row">
+      <button class="choice-btn" data-choice="pile" id="btnPile">面 Pile</button>
+      <button class="choice-btn" data-choice="face" id="btnFace">金 Face</button>
+    </div>
+    <div class="bet-row">
+      <div class="form-group"><label class="form-label">Mise (¥)</label><input class="form-input" id="betAmount" type="number" min="1" value="50"></div>
+    </div>
+    <button class="btn btn-solid btn-block btn-lg" id="btnPlay" style="margin-top:16px;">Lancer</button>
+    <div class="result-banner" id="resultBanner"></div>
+  </div>
+</div>
+
+<script type="module">
+import { initFx } from "../assets/js/fx.js";
+import { toast } from "../assets/js/toast.js";
+import { requirePlayerCard } from "../assets/js/playerSession.js";
+import { getCard, adjustBalance, isExpired } from "../assets/js/cards.js";
+
+initFx();
+const session = requirePlayerCard();
+let choice = null;
+let playing = false;
+
+document.querySelectorAll(".choice-btn").forEach(b => b.addEventListener("click", () => {
+  document.querySelectorAll(".choice-btn").forEach(x=>x.classList.remove("selected"));
+  b.classList.add("selected");
+  choice = b.dataset.choice;
+}));
+
+async function refreshBalance(){
+  const card = await getCard(session.id);
+  document.getElementById("balancePill").textContent = "¥ " + (card?.balance ?? 0);
+  return card;
+}
+refreshBalance();
+
+document.getElementById("btnPlay").addEventListener("click", async () => {
+  if(playing) return;
+  const bet = parseInt(document.getElementById("betAmount").value, 10);
+  if(!choice) return toast("Choisis Pile ou Face.", "warn");
+  if(!bet || bet <= 0) return toast("Mise invalide.", "warn");
+  const card = await getCard(session.id);
+  if(isExpired(card)) return toast("Carte expirée — repasse à la caisse.", "error");
+  if(card.balance < bet) return toast("Solde insuffisant.", "warn");
+
+  playing = true;
+  document.getElementById("resultBanner").className = "result-banner";
+  const coin = document.getElementById("coin");
+  coin.classList.remove("flipping"); void coin.offsetWidth; coin.classList.add("flipping");
+
+  const outcome = Math.random() < 0.5 ? "pile" : "face";
+  const win = outcome === choice;
+  const net = win ? Math.round(bet * 0.9) : -bet;
+
+  setTimeout(async () => {
+    coin.textContent = outcome === "pile" ? "面" : "金";
+    try{
+      const balanceAfter = await adjustBalance({
+        cardId: session.id, amount: net, type: win ? "gain" : "perte",
+        gameId: "coinflip", note: `Mise ¥${bet} sur ${choice}, résultat ${outcome}`
+      });
+      const banner = document.getElementById("resultBanner");
+      banner.classList.add(win ? "win" : "loss");
+      banner.textContent = win ? `✓ Gagné ! +¥${net} — Solde : ¥${balanceAfter}` : `✗ Perdu — ¥${bet} — Solde : ¥${balanceAfter}`;
+      document.getElementById("balancePill").textContent = "¥ " + balanceAfter;
+    }catch(e){ toast(e.message, "error"); }
+    playing = false;
+  }, 1800);
+});
+</script>
+</body>
+</html>

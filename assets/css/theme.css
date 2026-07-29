@@ -1,0 +1,213 @@
+/* ═══════════════════════════════════════════════════════════
+   SPHÈRE DE L'INTENDANCE — THÈME PARTAGÉ
+   Casino démoniaque féodal japonais — noir / cramoisi / or
+   ═══════════════════════════════════════════════════════════ */
+
+:root{
+  --bg:#050202; --bg2:#0a0403; --panel:rgba(12,7,6,.97); --panel2:rgba(8,4,3,.98);
+  --gold:#c9a227; --gold2:#f0d060; --gold-dim:rgba(201,162,39,.35);
+  --crimson:#7a0e14; --crimson2:#b3121a; --crimson-glow:rgba(179,18,26,.4);
+  --jade:#0f3d2e; --jade2:#1fae7c;
+  --text:#d8cfc2; --text-muted:rgba(216,207,194,.45);
+  --border:rgba(201,162,39,.14); --border-h:rgba(201,162,39,.4);
+  --win:#1fae7c; --loss:#c9282f; --info:#c9a227;
+  --sidebar-w:230px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{font-family:'Noto Sans JP',sans-serif;font-size:15px;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;}
+button{cursor:pointer;font-family:inherit;}
+input,select,textarea{font-family:inherit;}
+a{color:inherit;text-decoration:none;}
+::-webkit-scrollbar{width:6px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:rgba(201,162,39,.25);border-radius:3px;}
+::-webkit-scrollbar-thumb:hover{background:rgba(201,162,39,.45);}
+::selection{background:rgba(201,162,39,.25);color:#f5d870;}
+
+/* ── FOND ATMOSPHÉRIQUE ── */
+.bg-fx{position:fixed;inset:0;z-index:-3;pointer-events:none;
+  background:radial-gradient(ellipse at 20% 10%,#1a0505 0%,#050202 55%,#000 100%);}
+.bg-fx::before{content:'';position:absolute;inset:0;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.035) 2px,rgba(0,0,0,.035) 4px);}
+.bg-fx::after{content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse at 50% 100%,rgba(179,18,26,.1) 0%,transparent 60%),
+             radial-gradient(ellipse at 100% 0%,rgba(201,162,39,.05) 0%,transparent 50%);}
+#embers{position:fixed;inset:0;z-index:-2;pointer-events:none;opacity:.85;mix-blend-mode:screen;}
+#grain{position:fixed;inset:0;z-index:9998;pointer-events:none;opacity:.045;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");}
+#vignette{position:fixed;inset:0;z-index:9997;pointer-events:none;
+  background:radial-gradient(ellipse at 50% 50%,transparent 45%,rgba(0,0,0,.6) 100%);}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes shimmer{0%{background-position:-200%}100%{background-position:200%}}
+@keyframes glowPulse{0%,100%{box-shadow:0 0 10px var(--gold-dim)}50%{box-shadow:0 0 22px rgba(201,162,39,.5)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes borderFlow{0%{background-position:0% 50%}100%{background-position:200% 50%}}
+@keyframes floatUp{0%{transform:translateY(100vh) scale(0);opacity:0}10%{opacity:1}90%{opacity:.4}100%{transform:translateY(-10vh) translateX(var(--dx,0px)) scale(1.2);opacity:0}}
+
+/* ── LAYOUT STAFF (sidebar + topbar), réutilisé sur hote/croupier/admin ── */
+#sidebar{position:fixed;left:0;top:0;bottom:0;width:var(--sidebar-w);background:var(--panel2);
+  border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:100;animation:slideIn .6s cubic-bezier(.16,1,.3,1) both;}
+@keyframes slideIn{from{transform:translateX(-100%);opacity:0}to{transform:translateX(0);opacity:1}}
+#main{margin-left:var(--sidebar-w);min-height:100vh;display:flex;flex-direction:column;}
+#topbar{position:sticky;top:0;z-index:50;min-height:56px;background:rgba(5,2,2,.92);border-bottom:1px solid var(--border);
+  backdrop-filter:blur(20px);display:flex;align-items:center;justify-content:space-between;padding:12px 28px;gap:16px;flex-wrap:wrap;}
+#content{padding:32px 28px 80px;flex:1;}
+.sidebar-logo{padding:26px 20px 22px;border-bottom:1px solid var(--border);text-align:center;}
+.sidebar-ornament{color:var(--crimson2);font-size:1.5rem;display:block;margin-bottom:8px;filter:drop-shadow(0 0 8px rgba(179,18,26,.6));}
+.sidebar-logo-title{font-family:'Cinzel Decorative',serif;font-size:1.05rem;font-weight:700;letter-spacing:2px;
+  background:linear-gradient(135deg,#8a6a10,#f5d870,#c9a227,#f0e890,#a07820);-webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  background-size:200% auto;animation:shimmer 4s linear infinite;line-height:1.4;}
+.sidebar-logo-sub{font-size:.5rem;letter-spacing:3px;color:var(--text-muted);text-transform:uppercase;margin-top:4px;}
+.nav-list{list-style:none;padding:16px 0;flex:1;}
+.nav-item{margin:2px 10px;}
+.nav-btn{display:flex;align-items:center;gap:12px;width:100%;padding:11px 16px;background:none;border:none;
+  color:var(--text-muted);font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:2px;text-transform:uppercase;
+  transition:.2s;border-radius:6px;position:relative;overflow:hidden;}
+.nav-btn:hover{background:rgba(201,162,39,.07);color:var(--text);}
+.nav-btn.active{background:rgba(201,162,39,.12);color:var(--gold);}
+.nav-icon{font-size:1rem;width:20px;text-align:center;flex-shrink:0;}
+.sidebar-user{padding:14px 18px;border-top:1px solid var(--border);}
+.su-name{font-family:'Cinzel',serif;color:var(--gold);letter-spacing:2px;font-size:.68rem;margin-bottom:2px;}
+.su-role{color:var(--text-muted);font-size:.54rem;letter-spacing:1px;margin-bottom:8px;text-transform:uppercase;}
+
+/* ── TITRES ── */
+.page-title{font-family:'Cinzel',serif;font-size:1.35rem;font-weight:700;letter-spacing:5px;text-transform:uppercase;
+  color:var(--gold);margin-bottom:6px;position:relative;display:inline-block;padding-bottom:14px;text-shadow:0 0 30px rgba(201,162,39,.25);}
+.page-title::before{content:'';position:absolute;left:0;bottom:0;width:64px;height:2px;
+  background:linear-gradient(to right,currentColor,transparent);box-shadow:0 0 12px currentColor;}
+.page-sub{color:var(--text-muted);font-size:.68rem;letter-spacing:3px;text-transform:uppercase;margin-bottom:28px;}
+.page-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:24px;}
+
+/* ── CARTES / PANELS ── */
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:22px;box-shadow:0 10px 30px rgba(0,0,0,.5);}
+.panel-title{font-family:'Cinzel',serif;font-size:.68rem;letter-spacing:3px;text-transform:uppercase;color:var(--gold);
+  margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid var(--border);}
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:28px;}
+.stat-card{background:var(--panel);border:1px solid var(--border);border-top:3px solid var(--sc,#c9a227);border-radius:8px;
+  padding:20px 16px;text-align:center;transition:.25s;animation:fadeUp .5s ease-out both;position:relative;overflow:hidden;}
+.stat-card:hover{transform:translateY(-4px);box-shadow:0 14px 36px rgba(0,0,0,.6),0 0 20px rgba(201,162,39,.08);}
+.stat-icon{font-size:1.4rem;margin-bottom:8px;animation:iconFloat 3.4s ease-in-out infinite;}
+@keyframes iconFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+.stat-val{font-family:'Cinzel',serif;font-size:2.1rem;font-weight:900;color:var(--sc,#c9a227);text-shadow:0 0 20px var(--sc,#c9a227);line-height:1;margin-bottom:5px;}
+.stat-label{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:2px;color:var(--text-muted);text-transform:uppercase;}
+
+/* ── BOUTONS ── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:11px 20px;border-radius:6px;
+  font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:2px;text-transform:uppercase;transition:.2s;border:none;
+  position:relative;overflow:hidden;white-space:nowrap;}
+.btn::before{content:'';position:absolute;top:0;left:-60%;width:35%;height:100%;
+  background:linear-gradient(115deg,transparent,rgba(255,255,255,.18),transparent);transform:skewX(-20deg);transition:left .6s ease;pointer-events:none;}
+.btn:hover::before{left:130%;}
+.btn-gold{background:transparent;border:1px solid var(--gold);color:var(--gold);}
+.btn-gold:hover{background:rgba(201,162,39,.1);}
+.btn-crimson{background:transparent;border:1px solid var(--crimson2);color:#ff8a8a;}
+.btn-crimson:hover{background:rgba(179,18,26,.15);}
+.btn-jade{background:transparent;border:1px solid var(--jade2);color:#5ee0af;}
+.btn-jade:hover{background:rgba(31,174,124,.12);}
+.btn-ghost{background:transparent;border:1px solid rgba(255,255,255,.08);color:var(--text-muted);}
+.btn-ghost:hover{border-color:rgba(255,255,255,.2);color:var(--text);}
+.btn-solid{background:linear-gradient(135deg,#8a6a10,#c9a227);border:1px solid var(--gold2);color:#1a1305;font-weight:700;}
+.btn-solid:hover{filter:brightness(1.1);}
+.btn:disabled{opacity:.35;pointer-events:none;}
+.btn-sm{padding:6px 12px;font-size:.56rem;}
+.btn-lg{padding:15px 30px;font-size:.72rem;letter-spacing:3px;}
+.btn-block{width:100%;}
+
+/* ── FORMULAIRES ── */
+.form-group{display:flex;flex-direction:column;gap:5px;margin-bottom:13px;}
+.form-label{font-family:'Cinzel',serif;font-size:.55rem;letter-spacing:3px;color:var(--text-muted);text-transform:uppercase;}
+.form-input,.form-select,.form-textarea{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);
+  color:var(--text);padding:11px 14px;border-radius:6px;font-size:.85rem;outline:none;transition:.2s;width:100%;}
+.form-input:focus,.form-select:focus,.form-textarea:focus{border-color:rgba(201,162,39,.5);background:rgba(255,255,255,.06);
+  box-shadow:0 0 0 3px rgba(201,162,39,.08),0 0 16px rgba(201,162,39,.14);}
+.form-select option{background:#0a0403;}
+.form-hint{font-size:.62rem;color:var(--text-muted);line-height:1.5;margin-top:4px;}
+
+/* ── BADGES / STATUTS ── */
+.badge{display:inline-block;padding:4px 12px;border-radius:20px;font-family:'Cinzel',serif;font-size:.6rem;font-weight:700;
+  letter-spacing:1px;text-transform:uppercase;border:1px solid;position:relative;overflow:hidden;}
+.badge-hote{background:rgba(201,162,39,.15);border-color:var(--gold);color:var(--gold);}
+.badge-croupier{background:rgba(31,174,124,.12);border-color:var(--jade2);color:#5ee0af;}
+.badge-admin{background:rgba(179,18,26,.18);border-color:var(--crimson2);color:#ff9999;}
+.badge-active{background:rgba(31,174,124,.12);border-color:var(--jade2);color:#5ee0af;}
+.badge-expired{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.15);color:var(--text-muted);}
+.status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;}
+.status-dot.on{background:#1fae7c;box-shadow:0 0 6px rgba(31,174,124,.7);}
+.status-dot.off{background:#444;}
+
+/* ── JETON / CHIP CASINO ── */
+.chip{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#2a1204,#160902 70%);border:3px dashed var(--gold);
+  color:var(--gold2);font-family:'Cinzel',serif;font-weight:900;font-size:.55rem;box-shadow:0 3px 10px rgba(0,0,0,.6),0 0 14px rgba(201,162,39,.2);
+  flex-shrink:0;}
+.token-amount{font-family:'Cinzel',serif;font-weight:900;color:var(--gold2);text-shadow:0 0 14px rgba(240,208,96,.4);}
+.yen-tag::before{content:'¥ ';opacity:.7;}
+
+/* ── TABLE FEUTRE (jeux) ── */
+.felt-table{background:radial-gradient(ellipse at 50% 30%,#123024,#081712 75%);border:8px solid #1a0d05;
+  border-radius:50%/18%;box-shadow:0 20px 60px rgba(0,0,0,.7),inset 0 0 60px rgba(0,0,0,.5),inset 0 0 0 2px rgba(201,162,39,.25);
+  position:relative;padding:40px 30px;}
+
+/* ── TOAST ── */
+#toast-container{position:fixed;bottom:26px;right:22px;display:flex;flex-direction:column;gap:7px;z-index:9999;}
+.toast{display:flex;align-items:center;gap:11px;padding:12px 18px;background:#0d0705;border:1px solid var(--border);
+  border-left:3px solid var(--tc,#c9a227);border-radius:6px;font-size:.72rem;min-width:230px;box-shadow:0 8px 24px rgba(0,0,0,.6);
+  animation:toastIn .3s ease-out;}
+.toast.removing{animation:toastOut .3s ease-in forwards;}
+@keyframes toastIn{from{transform:translateX(110%)}to{transform:translateX(0)}}
+@keyframes toastOut{from{transform:translateX(0);opacity:1}to{transform:translateX(110%);opacity:0}}
+
+/* ── LOADER / EMPTY ── */
+.loader{width:26px;height:26px;border:2px solid rgba(201,162,39,.18);border-top-color:var(--gold);border-radius:50%;
+  animation:spin 1s linear infinite;margin:36px auto;box-shadow:0 0 22px rgba(201,162,39,.16);}
+.empty-state{text-align:center;padding:50px 20px;color:var(--text-muted);}
+.empty-icon{font-size:2.5rem;margin-bottom:10px;opacity:.35;}
+.empty-state p{font-family:'Cinzel',serif;font-size:.66rem;letter-spacing:2px;}
+
+/* ── LOG / TRANSACTION LIST ── */
+.log-list{display:flex;flex-direction:column;gap:7px;}
+.log-entry{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:14px;padding:12px 16px;
+  background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--lc,#c9a227);border-radius:6px;
+  transition:transform .2s,box-shadow .2s,border-color .2s;}
+.log-entry:hover{transform:translateX(4px);box-shadow:0 6px 20px rgba(0,0,0,.45);border-color:var(--border-h);}
+.log-action{font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:2px;text-transform:uppercase;color:var(--lc,#c9a227);white-space:nowrap;}
+.log-detail{font-size:.7rem;color:var(--text-muted);}
+.log-detail strong{color:var(--text);}
+.log-date{font-size:.55rem;color:var(--text-muted);white-space:nowrap;font-family:'Cinzel',serif;}
+
+/* ── MODALES ── */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:500;justify-content:center;
+  align-items:center;backdrop-filter:blur(10px);}
+.modal-overlay.open{display:flex;}
+.modal-box{width:95%;max-width:520px;background:#08040a;border:1px solid rgba(201,162,39,.2);border-top:3px solid var(--gold);
+  border-radius:10px;padding:28px;animation:modalIn .25s ease-out;box-shadow:0 0 80px rgba(0,0,0,.8);max-height:90vh;overflow-y:auto;position:relative;}
+@keyframes modalIn{from{opacity:0;transform:scale(.96) translateY(10px)}to{opacity:1;transform:scale(1) translateY(0)}}
+.modal-title{font-family:'Cinzel',serif;font-size:.9rem;letter-spacing:3px;text-transform:uppercase;color:var(--gold);margin-bottom:18px;}
+.modal-close{position:absolute;top:14px;right:16px;background:none;border:none;color:var(--text-muted);font-size:1.1rem;transition:.2s;}
+.modal-close:hover{color:var(--text);}
+
+/* ── RESPONSIVE ── */
+@media(max-width:900px){
+  :root{--sidebar-w:60px;}
+  .sidebar-logo-title,.sidebar-logo-sub,.nav-btn span:not(.nav-icon),.sidebar-user{display:none;}
+  .nav-btn{justify-content:center;padding:12px;}
+}
+@media(max-width:600px){#content{padding:18px 14px 70px;}}
+
+/* ── LANDING (index.html) ── */
+.gate-wrap{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;position:relative;z-index:2;text-align:center;}
+.gate-crest{font-size:1.6rem;color:rgba(201,162,39,.7);margin-bottom:18px;}
+.gate-title{font-family:'Cinzel Decorative',serif;font-weight:700;letter-spacing:8px;font-size:clamp(2rem,6vw,3.6rem);
+  background:linear-gradient(135deg,#8a6a10,#f5d870,#c9a227,#f0e890,#a07820);-webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  background-size:300% auto;animation:shimmer 5s linear infinite;line-height:1.2;}
+.gate-sub{font-family:'Cinzel',serif;font-size:.8rem;letter-spacing:5px;color:rgba(201,162,39,.5);text-transform:uppercase;margin-top:14px;}
+.gate-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:18px;max-width:900px;margin-top:50px;width:100%;}
+.gate-card{background:var(--panel);border:1px solid var(--border);border-top:2px solid var(--gc,var(--gold));border-radius:12px;
+  padding:28px 20px;display:flex;flex-direction:column;align-items:center;gap:10px;transition:.3s cubic-bezier(.22,1,.36,1);cursor:pointer;}
+.gate-card:hover{transform:translateY(-6px);box-shadow:0 16px 40px rgba(0,0,0,.6),0 0 24px var(--gc-glow,rgba(201,162,39,.15));border-color:var(--gc,var(--gold));}
+.gate-card-icon{font-size:2rem;}
+.gate-card-name{font-family:'Cinzel',serif;letter-spacing:2px;font-size:.85rem;color:var(--text);}
+.gate-card-desc{font-size:.66rem;color:var(--text-muted);line-height:1.5;}

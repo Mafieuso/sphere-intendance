@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sphère de l'Intendance — Maison de Jeu de l'Ordre</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Cinzel+Decorative:wght@700&family=Noto+Sans+JP:wght@200;300;400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/theme.css">
+</head>
+<body>
+<div class="bg-fx"></div>
+<canvas id="embers"></canvas>
+<div id="grain"></div>
+<div id="vignette"></div>
+<div class="particles" style="position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden"></div>
+
+<div class="gate-wrap">
+  <div class="gate-crest">⛩ ✦ ⛩</div>
+  <div class="gate-title">SPHÈRE DE<br>L'INTENDANCE</div>
+  <div class="gate-sub">Maison de Jeu de l'Ordre Démoniaque</div>
+
+  <div class="gate-grid">
+    <a class="gate-card" href="carte.html" style="--gc:#c9a227;--gc-glow:rgba(201,162,39,.2)">
+      <div class="gate-card-icon">🀄</div>
+      <div class="gate-card-name">Ma Carte de Joueur</div>
+      <div class="gate-card-desc">Consulter mon solde de tokens, mon historique, et accéder aux jeux.</div>
+    </a>
+    <a class="gate-card" href="spectateur.html" style="--gc:#1fae7c;--gc-glow:rgba(31,174,124,.2)">
+      <div class="gate-card-icon">👁</div>
+      <div class="gate-card-name">Salle en Direct</div>
+      <div class="gate-card-desc">Observer les tables en cours sans y participer.</div>
+    </a>
+    <a class="gate-card" href="login.html" style="--gc:#b3121a;--gc-glow:rgba(179,18,26,.25)">
+      <div class="gate-card-icon">⚔</div>
+      <div class="gate-card-name">Accès Staff</div>
+      <div class="gate-card-desc">Hôte, Croupier ou Intendance — connexion par code secret.</div>
+    </a>
+  </div>
+</div>
+
+<script type="module">
+import { initFx } from "./assets/js/fx.js";
+initFx();
+</script>
+</body>
+</html>

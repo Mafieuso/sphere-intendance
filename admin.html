@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Intendance — Sphère de l'Intendance</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Cinzel+Decorative:wght@700&family=Noto+Sans+JP:wght@200;300;400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/theme.css">
+<style>
+.admin-grid{display:grid;grid-template-columns:1.1fr 1fr;gap:20px;}
+@media(max-width:900px){.admin-grid{grid-template-columns:1fr;}}
+.staff-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 4px;border-bottom:1px solid rgba(255,255,255,.04);}
+.staff-item:last-child{border-bottom:none;}
+.staff-name{font-family:'Cinzel',serif;font-size:.75rem;letter-spacing:1px;}
+.staff-meta{font-size:.6rem;color:var(--text-muted);}
+.pin-reveal{background:rgba(201,162,39,.06);border:1px solid rgba(201,162,39,.25);border-radius:8px;padding:12px 14px;margin-top:10px;text-align:center;}
+.pin-reveal .pv{font-family:'Cinzel',serif;font-size:1.05rem;letter-spacing:4px;color:var(--gold2);margin-top:4px;}
+.cards-table{width:100%;border-collapse:collapse;}
+.cards-table td{padding:9px 6px;font-size:.72rem;border-bottom:1px solid rgba(255,255,255,.04);}
+</style>
+</head>
+<body>
+<div class="bg-fx"></div>
+<canvas id="embers"></canvas>
+<div id="grain"></div>
+<div id="vignette"></div>
+<div class="particles" style="position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden"></div>
+<div id="toast-container"></div>
+
+<nav id="sidebar">
+  <div class="sidebar-logo">
+    <span class="sidebar-ornament">⛩</span>
+    <div class="sidebar-logo-title">SPHÈRE DE<br>L'INTENDANCE</div>
+    <div class="sidebar-logo-sub">Direction</div>
+  </div>
+  <ul class="nav-list">
+    <li class="nav-item"><a class="nav-btn active" href="admin.html"><span class="nav-icon">🏛</span><span>Tableau de Bord</span></a></li>
+    <li class="nav-item"><a class="nav-btn" href="hote.html"><span class="nav-icon">💰</span><span>Caisse</span></a></li>
+    <li class="nav-item"><a class="nav-btn" href="croupier.html"><span class="nav-icon">🎩</span><span>Salle Croupier</span></a></li>
+    <li class="nav-item"><a class="nav-btn" href="spectateur.html"><span class="nav-icon">👁</span><span>Salle en Direct</span></a></li>
+    <li class="nav-item"><a class="nav-btn" href="index.html"><span class="nav-icon">⛩</span><span>Accueil</span></a></li>
+  </ul>
+  <div class="sidebar-user" id="sidebarUser">
+    <div class="su-name" id="suName">—</div>
+    <div class="su-role" id="suRole">—</div>
+    <button class="btn btn-ghost btn-sm btn-block" onclick="logout()">Quitter</button>
+  </div>
+</nav>
+
+<div id="main">
+  <header id="topbar">
+    <div class="page-title" style="font-size:1.05rem;padding-bottom:8px;margin:0;">Tableau de Bord de l'Intendance</div>
+  </header>
+  <main id="content">
+
+    <div class="stats-grid">
+      <div class="stat-card" style="--sc:#c9a227"><div class="stat-icon">¥</div><div class="stat-val" id="statCirculation">0</div><div class="stat-label">Tokens en Circulation</div></div>
+      <div class="stat-card" style="--sc:#1fae7c"><div class="stat-icon">🀄</div><div class="stat-val" id="statCards">0</div><div class="stat-label">Cartes Actives</div></div>
+      <div class="stat-card" style="--sc:#555"><div class="stat-icon">⏳</div><div class="stat-val" id="statExpired">0</div><div class="stat-label">Cartes Expirées</div></div>
+      <div class="stat-card" style="--sc:#b3121a"><div class="stat-icon">⚔</div><div class="stat-val" id="statStaff">0</div><div class="stat-label">Membres du Staff</div></div>
+    </div>
+
+    <div class="admin-grid">
+      <div class="panel">
+        <div class="panel-title">📜 Journal d'Audit — Temps Réel</div>
+        <div id="auditLog"><div class="loader"></div></div>
+      </div>
+
+      <div>
+        <div class="panel" style="margin-bottom:20px;">
+          <div class="panel-title">➕ Ajouter un Membre du Staff</div>
+          <div class="form-group"><label class="form-label">Nom</label><input class="form-input" id="stName" placeholder="Pseudo"></div>
+          <div class="form-group"><label class="form-label">Steam ID</label><input class="form-input" id="stSteamId" placeholder="76561198XXXXXXXXX"></div>
+          <div class="form-group"><label class="form-label">Rôle</label>
+            <select class="form-select" id="stRole">
+              <option value="hote">Hôte</option>
+              <option value="croupier">Croupier</option>
+              <option value="admin">Intendance (Admin)</option>
+            </select>
+          </div>
+          <button class="btn btn-solid btn-block" id="btnAddStaff">Ajouter</button>
+          <div id="staffPinReveal"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title">⚔ Staff Actuel</div>
+          <div id="staffList"><div class="loader"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:24px;">
+      <div class="panel-title">🀄 Toutes les Cartes Joueur</div>
+      <div style="overflow-x:auto;"><table class="cards-table" id="cardsTable"><tbody><tr><td><div class="loader"></div></td></tr></tbody></table></div>
+    </div>
+
+  </main>
+</div>
+
+<script type="module">
+import { initFx } from "./assets/js/fx.js";
+import { toast } from "./assets/js/toast.js";
+import { requireRole, renderStaffBadge, roleLabel } from "./assets/js/session.js";
+import { listAllCards, isExpired } from "./assets/js/cards.js";
+import { logAction } from "./assets/js/logs.js";
+import { db, collection, query, orderBy, limit, onSnapshot, addDoc, getDocs } from "./assets/js/firebase-init.js";
+
+initFx();
+const staff = requireRole(["admin"]);
+if(staff){ renderStaffBadge(); }
+
+function generatePin(){
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let pin = ""; for(let i=0;i<8;i++) pin += chars[Math.floor(Math.random()*chars.length)];
+  return pin;
+}
+
+/* ── Journal d'audit live ── */
+const logQ = query(collection(db, "logs"), orderBy("createdAt", "desc"), limit(40));
+onSnapshot(logQ, (snap) => {
+  const el = document.getElementById("auditLog");
+  if(snap.empty){ el.innerHTML = `<div class="empty-state"><p>Aucune activité.</p></div>`; return; }
+  el.innerHTML = `<div class="log-list">${snap.docs.map(d => {
+    const l = d.data();
+    const date = l.createdAt?.toDate ? l.createdAt.toDate().toLocaleString('fr-FR') : '—';
+    return `<div class="log-entry">
+      <span class="log-action">${l.action}</span>
+      <span class="log-detail"><strong>${l.playerName||l.staffName||'—'}</strong> ${l.detail?('— '+l.detail):''} ${l.amount!=null?(' ('+(l.amount>0?'+':'')+l.amount+'¥)'):''}</span>
+      <span class="log-date">${date}</span>
+    </div>`;
+  }).join('')}</div>`;
+});
+
+/* ── Staff ── */
+async function loadStaff(){
+  const snap = await getDocs(collection(db, "staff"));
+  const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  document.getElementById("statStaff").textContent = list.filter(s=>s.active).length;
+  const el = document.getElementById("staffList");
+  if(!list.length){ el.innerHTML = `<div class="empty-state"><p>Aucun membre du staff.</p></div>`; return; }
+  el.innerHTML = list.map(s => `
+    <div class="staff-item">
+      <div><div class="staff-name">${s.name}</div><div class="staff-meta">${s.steamId||'—'}</div></div>
+      <span class="badge badge-${s.role}">${roleLabel(s.role)}</span>
+    </div>`).join('');
+}
+
+document.getElementById("btnAddStaff").addEventListener("click", async () => {
+  const name = document.getElementById("stName").value.trim();
+  const steamId = document.getElementById("stSteamId").value.trim();
+  const role = document.getElementById("stRole").value;
+  if(!name || !steamId) return toast("Nom et Steam ID requis.", "warn");
+  const pin = generatePin();
+  await addDoc(collection(db, "staff"), { name, steamId, role, pin, active: true, createdAt: new Date() });
+  await logAction({ action: "STAFF_AJOUTE", detail: `${name} ajouté comme ${roleLabel(role)}`, staffId: staff.id, staffName: staff.name });
+  toast("Membre du staff ajouté.", "success");
+  document.getElementById("staffPinReveal").innerHTML = `<div class="pin-reveal"><div class="form-label">PIN de connexion</div><div class="pv">${pin}</div></div>`;
+  document.getElementById("stName").value = ""; document.getElementById("stSteamId").value = "";
+  loadStaff();
+});
+
+/* ── Cartes ── */
+async function loadCards(){
+  const cards = await listAllCards();
+  const active = cards.filter(c => !isExpired(c));
+  const expired = cards.filter(c => isExpired(c));
+  document.getElementById("statCards").textContent = active.length;
+  document.getElementById("statExpired").textContent = expired.length;
+  document.getElementById("statCirculation").textContent = active.reduce((s,c)=>s+(c.balance||0),0);
+
+  const tbody = document.querySelector("#cardsTable tbody");
+  if(!cards.length){ tbody.innerHTML = `<tr><td class="empty-state"><p>Aucune carte.</p></td></tr>`; return; }
+  tbody.innerHTML = cards.map(c => {
+    const exp = isExpired(c);
+    return `<tr>
+      <td><strong>${c.playerName}</strong></td>
+      <td style="color:var(--text-muted)">${c.steamId}</td>
+      <td class="yen-tag" style="color:var(--gold2)">${c.balance}</td>
+      <td><span class="badge ${exp?'badge-expired':'badge-active'}">${exp?'Expirée':'Active'}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+loadStaff();
+loadCards();
+setInterval(loadCards, 30000);
+</script>
+</body>
+</html>

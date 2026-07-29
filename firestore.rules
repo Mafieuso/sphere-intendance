@@ -1,0 +1,68 @@
+rules_version = '2';
+
+// ─────────────────────────────────────────────────────────────
+// IMPORTANT — LIS SETUP.md AVANT DE DÉPLOYER CES RÈGLES.
+// Ce site n'utilise PAS Firebase Authentication (pas de compte
+// email/mot de passe) : le rôle du staff (Hôte/Croupier/Admin)
+// est vérifié uniquement côté client via un code PIN stocké dans
+// la collection `staff`. Comme n'importe quel site statique avec
+// clé Firebase publique, ces règles ne peuvent PAS garantir
+// « seul un Hôte peut créditer des tokens » de façon
+// infalsifiable : elles valident la FORME des données et
+// empêchent les abus grossiers (solde négatif, suppression de
+// l'historique...), mais un utilisateur techniquement motivé
+// pourrait contourner l'interface. C'est le même modèle de
+// sécurité que les autres sites de l'Ordre déjà en ligne.
+// Pour une vraie séparation des rôles côté serveur, il faudrait
+// migrer vers Firebase Authentication + Cloud Functions.
+// ─────────────────────────────────────────────────────────────
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Staff : lecture nécessaire pour la connexion par PIN.
+    // Utilise des PIN longs et aléatoires (pas "1234").
+    match /staff/{staffId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.keys().hasAll(['name','role','pin','active'])
+        && request.resource.data.role in ['hote','croupier','admin'];
+      allow delete: if false;
+    }
+
+    // Cartes joueur : lecture publique (consultation de solde),
+    // écriture limitée à un solde >= 0.
+    match /playerCards/{cardId} {
+      allow read: if true;
+      allow create: if request.resource.data.balance == 0
+        && request.resource.data.keys().hasAll(['steamId','playerName','balance','status']);
+      allow update: if request.resource.data.balance is number && request.resource.data.balance >= 0;
+      allow delete: if false;
+    }
+
+    // Transactions : registre financier immuable (aucune modification/suppression).
+    match /transactions/{txId} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasAll(['cardId','type','amount']);
+      allow update, delete: if false;
+    }
+
+    // Logs d'audit : immuables également.
+    match /logs/{logId} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasAll(['action']);
+      allow update, delete: if false;
+    }
+
+    // Tables de jeu live (roulette / blackjack) : état partagé en temps réel.
+    match /tables/{tableId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Manches du Crash Game.
+    match /crashRounds/{roundId} {
+      allow read: if true;
+      allow write: if true;
+    }
+  }
+}

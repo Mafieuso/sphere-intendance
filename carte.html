@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ma Carte de Joueur — Sphère de l'Intendance</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Cinzel+Decorative:wght@700&family=Noto+Sans+JP:wght@200;300;400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/theme.css">
+<style>
+.wrap{max-width:640px;margin:0 auto;padding:60px 20px 80px;position:relative;z-index:2;}
+.unlock-panel{max-width:400px;margin:80px auto;background:var(--panel);border:1px solid var(--border);border-top:3px solid var(--gold);
+  border-radius:14px;padding:36px 32px;text-align:center;animation:fadeUp .5s ease-out both;}
+.card-visual{position:relative;background:linear-gradient(150deg,#160a02,#0a0402 60%,#1a0505);border:1px solid rgba(201,162,39,.3);
+  border-radius:16px;padding:30px 28px;box-shadow:0 20px 60px rgba(0,0,0,.7),inset 0 1px 0 rgba(201,162,39,.15);overflow:hidden;animation:fadeUp .5s ease-out both;}
+.card-visual::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 100% 0%,rgba(201,162,39,.1),transparent 60%);pointer-events:none;}
+.cv-top{display:flex;justify-content:space-between;align-items:flex-start;position:relative;z-index:1;}
+.cv-org{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:3px;color:rgba(201,162,39,.55);text-transform:uppercase;}
+.cv-status{font-size:.55rem;}
+.cv-name{font-family:'Cinzel',serif;font-size:1.5rem;color:var(--gold2);letter-spacing:2px;margin-top:24px;position:relative;z-index:1;}
+.cv-steam{font-size:.65rem;color:var(--text-muted);margin-top:4px;position:relative;z-index:1;}
+.cv-balance-row{display:flex;align-items:baseline;gap:10px;margin-top:22px;position:relative;z-index:1;}
+.cv-balance{font-family:'Cinzel',serif;font-size:2.6rem;font-weight:900;color:var(--gold2);text-shadow:0 0 26px rgba(240,208,96,.45);}
+.cv-expire{font-size:.6rem;color:var(--text-muted);margin-top:10px;position:relative;z-index:1;}
+.games-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-top:26px;}
+.game-tile{background:var(--panel);border:1px solid var(--border);border-top:2px solid var(--gc,var(--gold));border-radius:10px;
+  padding:20px 14px;text-align:center;transition:.25s;}
+.game-tile:hover{transform:translateY(-4px);box-shadow:0 14px 36px rgba(0,0,0,.6);border-color:var(--gc,var(--gold));}
+.game-tile .gi{font-size:1.8rem;margin-bottom:8px;}
+.game-tile .gn{font-family:'Cinzel',serif;font-size:.72rem;letter-spacing:1px;color:var(--text);}
+</style>
+</head>
+<body>
+<div class="bg-fx"></div>
+<canvas id="embers"></canvas>
+<div id="grain"></div>
+<div id="vignette"></div>
+<div class="particles" style="position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden"></div>
+<div id="toast-container"></div>
+
+<div class="wrap">
+  <div id="unlockView"></div>
+  <div id="cardView" style="display:none"></div>
+</div>
+
+<script type="module">
+import { initFx } from "./assets/js/fx.js";
+import { toast } from "./assets/js/toast.js";
+import { unlockCard, getPlayerSession, clearPlayerSession } from "./assets/js/playerSession.js";
+import { getCard, cardTransactions, isExpired, msUntilExpiration } from "./assets/js/cards.js";
+
+initFx();
+
+const unlockView = document.getElementById("unlockView");
+const cardView = document.getElementById("cardView");
+
+function renderUnlock(){
+  cardView.style.display = "none";
+  unlockView.style.display = "block";
+  unlockView.innerHTML = `
+    <div class="unlock-panel">
+      <div style="font-size:1.3rem;color:rgba(201,162,39,.7);margin-bottom:10px;">🀄</div>
+      <div class="page-title" style="font-size:1rem;padding-bottom:6px;display:block;">Ma Carte de Joueur</div>
+      <div class="page-sub" style="margin-bottom:20px;">Entre ton Steam ID et ton code PIN</div>
+      <div class="form-group"><label class="form-label">Steam ID 64</label><input class="form-input" id="uSteamId" placeholder="76561198XXXXXXXXX"></div>
+      <div class="form-group"><label class="form-label">Code PIN</label><input class="form-input" id="uPin" placeholder="Fourni par l'Hôte" style="text-align:center;letter-spacing:3px;"></div>
+      <button class="btn btn-solid btn-block btn-lg" id="btnUnlock">Déverrouiller</button>
+      <a href="index.html" style="display:block;margin-top:16px;font-size:.6rem;letter-spacing:2px;color:var(--text-muted);text-transform:uppercase;">← Retour</a>
+    </div>`;
+  document.getElementById("btnUnlock").addEventListener("click", async () => {
+    const steamId = document.getElementById("uSteamId").value.trim();
+    const pin = document.getElementById("uPin").value.trim();
+    if(!steamId || !pin) return toast("Steam ID et PIN requis.", "warn");
+    const card = await unlockCard(steamId, pin);
+    if(!card) return toast("Steam ID ou PIN incorrect.", "error");
+    toast("Carte déverrouillée.", "success");
+    await renderCard();
+  });
+}
+
+async function renderCard(){
+  const session = getPlayerSession();
+  if(!session) return renderUnlock();
+  const card = await getCard(session.id);
+  if(!card) return renderUnlock();
+
+  unlockView.style.display = "none";
+  cardView.style.display = "block";
+  const expired = isExpired(card);
+  const hoursLeft = expired ? 0 : Math.floor(msUntilExpiration(card) / 3600000);
+
+  cardView.innerHTML = `
+    <div class="card-visual">
+      <div class="cv-top">
+        <div class="cv-org">Sphère de l'Intendance</div>
+        <div class="cv-status badge ${expired?'badge-expired':'badge-active'}">${expired?'Carte Expirée':'Active'}</div>
+      </div>
+      <div class="cv-name">${card.playerName}</div>
+      <div class="cv-steam">${card.steamId}</div>
+      <div class="cv-balance-row"><div class="cv-balance yen-tag">${card.balance}</div></div>
+      <div class="cv-expire">${expired ? "Aucune activité depuis plus de 24h — repasse à la caisse pour la réactiver." : `Expire dans ${hoursLeft}h sans activité.`}</div>
+    </div>
+
+    <div class="page-header" style="margin-top:32px;">
+      <div class="panel-title" style="border:none;padding:0;margin:0;">🎲 Jeux Disponibles</div>
+      <button class="btn btn-ghost btn-sm" id="btnLock">Verrouiller la carte</button>
+    </div>
+    <div class="games-grid">
+      <a class="game-tile" href="games/coinflip.html" style="--gc:#c9a227"><div class="gi">🪙</div><div class="gn">Pile ou Face</div></a>
+      <a class="game-tile" href="games/dice.html" style="--gc:#1fae7c"><div class="gi">🎲</div><div class="gn">Lancer de Dés</div></a>
+      <a class="game-tile" href="games/roulette.html" style="--gc:#b3121a"><div class="gi">🎡</div><div class="gn">Roulette</div></a>
+      <a class="game-tile" href="games/blackjack.html" style="--gc:#c9a227"><div class="gi">🃏</div><div class="gn">Blackjack</div></a>
+      <a class="game-tile" href="games/crash.html" style="--gc:#b3121a"><div class="gi">📈</div><div class="gn">Ascension Démoniaque</div></a>
+    </div>
+
+    <div class="panel" style="margin-top:28px;">
+      <div class="panel-title">📜 Historique</div>
+      <div id="cardTxLog"><div class="loader"></div></div>
+    </div>
+  `;
+
+  document.getElementById("btnLock").addEventListener("click", () => { clearPlayerSession(); renderUnlock(); });
+
+  const txs = await cardTransactions(card.id, 25);
+  const typeColor = { depot:'#1fae7c', retrait:'#c9282f', mise:'#c9a227', gain:'#1fae7c', perte:'#c9282f' };
+  const el = document.getElementById("cardTxLog");
+  if(!txs.length){ el.innerHTML = `<div class="empty-state"><p>Aucune transaction pour l'instant.</p></div>`; }
+  else{
+    el.innerHTML = `<div class="log-list">${txs.map(t => {
+      const c = typeColor[t.type] || '#c9a227';
+      const date = t.createdAt?.toDate ? t.createdAt.toDate().toLocaleString('fr-FR') : '—';
+      return `<div class="log-entry" style="--lc:${c}">
+        <span class="log-action">${t.type}</span>
+        <span class="log-detail">${t.amount>0?'+':''}${t.amount}¥ ${t.note?('— '+t.note):''} ${t.staffName?('· '+t.staffName):''}</span>
+        <span class="log-date">${date}</span>
+      </div>`;
+    }).join('')}</div>`;
+  }
+}
+
+if(getPlayerSession()) renderCard(); else renderUnlock();
+</script>
+</body>
+</html>

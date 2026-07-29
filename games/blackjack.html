@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blackjack — Sphère de l'Intendance</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Cinzel+Decorative:wght@700&family=Noto+Sans+JP:wght@200;300;400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/css/theme.css">
+<style>
+.wrap{max-width:760px;margin:0 auto;padding:30px 20px 80px;position:relative;z-index:2;}
+.gtop{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;gap:10px;flex-wrap:wrap;}
+.balance-pill{font-family:'Cinzel',serif;font-size:.85rem;color:var(--gold2);border:1px solid var(--border-h);padding:8px 16px;border-radius:20px;background:rgba(201,162,39,.05);}
+.dealer-zone{text-align:center;padding:18px 0 24px;border-bottom:1px dashed var(--border);margin-bottom:20px;}
+.dealer-label{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:3px;color:var(--text-muted);text-transform:uppercase;margin-bottom:10px;}
+.hand{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;}
+.card{width:46px;height:64px;border-radius:6px;background:linear-gradient(160deg,#fdf6e3,#e8dcc0);color:#1a1005;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-weight:900;font-size:.9rem;
+  box-shadow:0 4px 12px rgba(0,0,0,.5);border:1px solid rgba(0,0,0,.2);}
+.card.red{color:#a01018;}
+.card.hidden{background:linear-gradient(160deg,#3a0a0a,#1a0303);color:transparent;border:1px solid rgba(201,162,39,.3);
+  background-image:repeating-linear-gradient(45deg,rgba(201,162,39,.08) 0 4px,transparent 4px 8px);}
+.hand-total{font-family:'Cinzel',serif;font-size:.85rem;color:var(--gold2);margin-top:8px;}
+.seats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-top:16px;}
+.seat{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center;transition:.2s;}
+.seat.me{border-color:var(--gold);box-shadow:0 0 20px rgba(201,162,39,.12);}
+.seat-name{font-family:'Cinzel',serif;font-size:.72rem;color:var(--text);margin-bottom:8px;}
+.seat-status{font-size:.58rem;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted);margin-top:6px;}
+.seat-status.bust{color:#ff6644;}
+.seat-status.stand{color:#5ee0af;}
+.seat-status.win{color:#5ee0af;}
+.seat-status.lose{color:#ff6644;}
+.seat-status.push{color:#c9a227;}
+.join-row,.action-row{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;align-items:flex-end;}
+.join-row .form-group{flex:1;min-width:120px;margin-bottom:0;}
+.croupier-controls{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;}
+</style>
+</head>
+<body>
+<div class="bg-fx"></div><canvas id="embers"></canvas><div id="grain"></div><div id="vignette"></div>
+<div class="particles" style="position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden"></div>
+<div id="toast-container"></div>
+
+<div class="wrap">
+  <div class="gtop">
+    <a href="#" id="backLink" class="btn btn-ghost btn-sm">← Retour</a>
+    <div class="balance-pill yen-tag" id="balancePill" style="display:none">—</div>
+  </div>
+  <div class="page-title" style="font-size:1.15rem;padding-bottom:8px;">🃏 Blackjack</div>
+  <div class="page-sub" id="statusLabel">Table blackjack-1</div>
+
+  <div class="panel">
+    <div class="dealer-zone">
+      <div class="dealer-label">Croupier</div>
+      <div class="hand" id="dealerHand"></div>
+      <div class="hand-total" id="dealerTotal"></div>
+    </div>
+
+    <div class="seats-grid" id="seatsGrid"></div>
+
+    <div id="croupierPanel" style="display:none">
+      <div class="croupier-controls">
+        <button class="btn btn-jade" id="btnNewRound">Ouvrir les Mises</button>
+        <button class="btn btn-gold" id="btnDeal">Distribuer</button>
+        <button class="btn btn-crimson" id="btnReveal">Révéler & Résoudre</button>
+      </div>
+    </div>
+
+    <div id="playerPanel" style="display:none">
+      <div class="join-row" id="joinRow">
+        <div class="form-group"><label class="form-label">Mise (¥)</label><input class="form-input" id="betAmount" type="number" min="1" value="40"></div>
+        <button class="btn btn-solid" id="btnJoin">Rejoindre la Table</button>
+      </div>
+      <div class="action-row" id="actionRow" style="display:none">
+        <button class="btn btn-jade" id="btnHit">Tirer (Hit)</button>
+        <button class="btn btn-crimson" id="btnStand">Rester (Stand)</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { initFx } from "../assets/js/fx.js";
+import { toast } from "../assets/js/toast.js";
+import { getSession } from "../assets/js/session.js";
+import { getPlayerSession } from "../assets/js/playerSession.js";
+import { getCard, adjustBalance, isExpired } from "../assets/js/cards.js";
+import {
+  db, doc, getDoc, setDoc, collection, addDoc, updateDoc, query, where, getDocs, onSnapshot, serverTimestamp
+} from "../assets/js/firebase-init.js";
+
+initFx();
+const TABLE_ID = "blackjack-1";
+const tableRef = doc(db, "tables", TABLE_ID);
+const seatsCol = collection(db, "tables", TABLE_ID, "seats");
+
+const staff = getSession();
+const player = getPlayerSession();
+const isCroupier = staff && (staff.role === "croupier" || staff.role === "admin");
+
+document.getElementById("backLink").href = isCroupier ? "../croupier.html" : "../carte.html";
+if(!isCroupier) document.getElementById("backLink").textContent = "← Ma Carte";
+if(isCroupier) document.getElementById("croupierPanel").style.display = "block";
+if(player){ document.getElementById("playerPanel").style.display = "block"; document.getElementById("balancePill").style.display="inline-block"; refreshBalance(); }
+
+async function refreshBalance(){
+  if(!player) return;
+  const card = await getCard(player.id);
+  document.getElementById("balancePill").textContent = "¥ " + (card?.balance ?? 0);
+}
+
+const RANKS = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
+const SUITS = ['♠','♥','♦','♣'];
+function randomCard(){ return { rank: RANKS[Math.floor(Math.random()*RANKS.length)], suit: SUITS[Math.floor(Math.random()*SUITS.length)] }; }
+function cardValue(rank){ if(rank==='A') return 11; if(['J','Q','K'].includes(rank)) return 10; return parseInt(rank,10); }
+function handTotal(hand){
+  let total = hand.reduce((s,c)=>s+cardValue(c.rank),0);
+  let aces = hand.filter(c=>c.rank==='A').length;
+  while(total > 21 && aces > 0){ total -= 10; aces--; }
+  return total;
+}
+function renderHand(el, hand, hideSecond){
+  el.innerHTML = hand.map((c,i) => {
+    if(hideSecond && i === 1) return `<div class="card hidden">?</div>`;
+    const red = c.suit === '♥' || c.suit === '♦';
+    return `<div class="card ${red?'red':''}">${c.rank}<span style="font-size:.75rem">${c.suit}</span></div>`;
+  }).join('');
+}
+
+async function ensureTable(){
+  const snap = await getDoc(tableRef);
+  if(!snap.exists()) await setDoc(tableRef, { status:"betting", roundId:1, dealerHand:[], hideSecond:true, updatedAt: serverTimestamp() });
+}
+ensureTable();
+
+document.getElementById("btnNewRound")?.addEventListener("click", async () => {
+  const snap = await getDoc(tableRef);
+  const t = snap.data() || { roundId: 0 };
+  await setDoc(tableRef, { status:"betting", roundId:(t.roundId||0)+1, dealerHand:[], hideSecond:true, croupierName: staff.name, updatedAt: serverTimestamp() });
+  toast("Nouvelle manche — les joueurs peuvent rejoindre.", "success");
+});
+
+document.getElementById("btnDeal")?.addEventListener("click", async () => {
+  const snap = await getDoc(tableRef);
+  const t = snap.data();
+  if(!t || t.status !== "betting") return toast("Ouvre d'abord les mises.", "warn");
+  const seatsSnap = await getDocs(query(seatsCol, where("roundId","==",t.roundId)));
+  if(seatsSnap.empty) return toast("Aucun joueur à la table.", "warn");
+  for(const s of seatsSnap.docs){
+    await updateDoc(doc(seatsCol, s.id), { hand: [randomCard(), randomCard()], status: "playing" });
+  }
+  await setDoc(tableRef, { ...t, status:"playing", dealerHand:[randomCard(), randomCard()], hideSecond:true, updatedAt: serverTimestamp() });
+  toast("Cartes distribuées.", "success");
+});
+
+document.getElementById("btnReveal")?.addEventListener("click", async () => {
+  const snap = await getDoc(tableRef);
+  const t = snap.data();
+  if(!t || t.status !== "playing") return toast("La manche n'est pas en cours.", "warn");
+  let dealerHand = [...t.dealerHand];
+  while(handTotal(dealerHand) < 17) dealerHand.push(randomCard());
+  const dealerTotal = handTotal(dealerHand);
+
+  const seatsSnap = await getDocs(query(seatsCol, where("roundId","==",t.roundId)));
+  for(const s of seatsSnap.docs){
+    const seat = s.data();
+    const pTotal = handTotal(seat.hand || []);
+    let outcome = "lose";
+    if(pTotal > 21){ outcome = "lose"; }
+    else if(dealerTotal > 21){ outcome = "win"; }
+    else if(pTotal > dealerTotal){ outcome = "win"; }
+    else if(pTotal === dealerTotal){ outcome = "push"; }
+    else{ outcome = "lose"; }
+
+    if(outcome === "win"){
+      const blackjack = pTotal === 21 && seat.hand.length === 2;
+      const payout = blackjack ? Math.floor(seat.bet * 2.5) : seat.bet * 2;
+      await adjustBalance({ cardId: seat.cardId, amount: payout, type: "gain", gameId: "blackjack", note: `Blackjack manche #${t.roundId} — ${pTotal} vs ${dealerTotal}` });
+    } else if(outcome === "push"){
+      await adjustBalance({ cardId: seat.cardId, amount: seat.bet, type: "gain", gameId: "blackjack", note: `Égalité (push) manche #${t.roundId}` });
+    }
+    await updateDoc(doc(seatsCol, s.id), { status: outcome });
+  }
+  await setDoc(tableRef, { ...t, status:"result", dealerHand, hideSecond:false, updatedAt: serverTimestamp() });
+  toast("Manche résolue.", "success");
+});
+
+document.getElementById("btnJoin")?.addEventListener("click", async () => {
+  const snap = await getDoc(tableRef);
+  const t = snap.data();
+  if(!t || t.status !== "betting") return toast("Les mises ne sont pas ouvertes.", "warn");
+  const amount = parseInt(document.getElementById("betAmount").value, 10);
+  if(!amount || amount <= 0) return toast("Mise invalide.", "warn");
+  const card = await getCard(player.id);
+  if(isExpired(card)) return toast("Carte expirée.", "error");
+  if(card.balance < amount) return toast("Solde insuffisant.", "warn");
+
+  const existing = await getDocs(query(seatsCol, where("roundId","==",t.roundId), where("cardId","==",player.id)));
+  if(!existing.empty) return toast("Tu es déjà à la table pour cette manche.", "warn");
+
+  await adjustBalance({ cardId: player.id, amount: -amount, type: "mise", gameId: "blackjack", note: `Mise ¥${amount} au Blackjack` });
+  await addDoc(seatsCol, { roundId: t.roundId, cardId: player.id, steamId: player.steamId, playerName: player.playerName, bet: amount, hand: [], status: "waiting" });
+  toast("Place à la table réservée.", "success");
+  refreshBalance();
+});
+
+document.getElementById("btnHit")?.addEventListener("click", () => actOnHand("hit"));
+document.getElementById("btnStand")?.addEventListener("click", () => actOnHand("stand"));
+
+async function actOnHand(action){
+  const snap = await getDoc(tableRef);
+  const t = snap.data();
+  if(!t || t.status !== "playing") return;
+  const mine = await getDocs(query(seatsCol, where("roundId","==",t.roundId), where("cardId","==",player.id)));
+  if(mine.empty) return;
+  const seatDoc = mine.docs[0];
+  const seat = seatDoc.data();
+  if(seat.status !== "playing") return;
+
+  if(action === "hit"){
+    const hand = [...seat.hand, randomCard()];
+    const total = handTotal(hand);
+    await updateDoc(doc(seatsCol, seatDoc.id), { hand, status: total > 21 ? "bust" : "playing" });
+    if(total > 21) toast("Bust ! Tu dépasses 21.", "error");
+  } else {
+    await updateDoc(doc(seatsCol, seatDoc.id), { status: "stand" });
+    toast("Tu restes sur ta main.", "info");
+  }
+}
+
+let currentTable = null;
+onSnapshot(tableRef, (snap) => {
+  const t = snap.data();
+  if(!t) return;
+  currentTable = t;
+  document.getElementById("statusLabel").textContent = `Manche #${t.roundId} — ${({betting:'Mises ouvertes',playing:'En cours',result:'Résultat'})[t.status] || t.status}`;
+  renderHand(document.getElementById("dealerHand"), t.dealerHand || [], t.hideSecond && (t.dealerHand||[]).length>1);
+  document.getElementById("dealerTotal").textContent = t.hideSecond ? "" : `Total : ${handTotal(t.dealerHand||[])}`;
+  const joinRow = document.getElementById("joinRow");
+  const actionRow = document.getElementById("actionRow");
+  if(joinRow) joinRow.style.display = t.status === "betting" ? "flex" : "none";
+  if(actionRow) actionRow.style.display = t.status === "playing" ? "flex" : "none";
+  renderSeats();
+});
+onSnapshot(seatsCol, () => renderSeats());
+
+async function renderSeats(){
+  if(!currentTable) return;
+  const snap = await getDocs(query(seatsCol, where("roundId","==",currentTable.roundId)));
+  const grid = document.getElementById("seatsGrid");
+  if(snap.empty){ grid.innerHTML = `<div class="empty-state"><p>Aucun joueur à la table.</p></div>`; return; }
+  grid.innerHTML = snap.docs.map(d => {
+    const s = d.data();
+    const total = handTotal(s.hand || []);
+    const mine = player && s.cardId === player.id;
+    const statusText = { waiting:'En attente', playing:'À toi de jouer', bust:'Bust !', stand:'Reste', win:'Gagné !', lose:'Perdu', push:'Égalité' }[s.status] || s.status;
+    return `<div class="seat ${mine?'me':''}">
+      <div class="seat-name">${s.playerName} — ¥${s.bet}</div>
+      <div class="hand">${(s.hand||[]).map(c => { const red=c.suit==='♥'||c.suit==='♦'; return `<div class="card ${red?'red':''}">${c.rank}<span style="font-size:.7rem">${c.suit}</span></div>`; }).join('')}</div>
+      ${s.hand && s.hand.length ? `<div class="hand-total">Total : ${total}</div>` : ''}
+      <div class="seat-status ${s.status}">${statusText}</div>
+    </div>`;
+  }).join('');
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,106 @@
+/* Cartes Joueur (wallet de tokens) — création, dépôt/retrait, historique,
+   et règle d'expiration : une carte sans dépôt/retrait depuis 24h est
+   considérée expirée (calcul côté client à partir de lastTransactionAt,
+   pas besoin de fonction planifiée côté serveur). */
+import {
+  db, collection, doc, getDoc, getDocs, addDoc, updateDoc, query, where,
+  orderBy, limit, runTransaction, serverTimestamp
+} from "./firebase-init.js";
+import { logAction } from "./logs.js";
+
+export const EXPIRATION_MS = 24 * 60 * 60 * 1000;
+
+export function isExpired(card){
+  if(!card || !card.lastTransactionAt) return false;
+  const last = card.lastTransactionAt.toMillis ? card.lastTransactionAt.toMillis() : card.lastTransactionAt;
+  return (Date.now() - last) > EXPIRATION_MS;
+}
+
+export function msUntilExpiration(card){
+  if(!card || !card.lastTransactionAt) return EXPIRATION_MS;
+  const last = card.lastTransactionAt.toMillis ? card.lastTransactionAt.toMillis() : card.lastTransactionAt;
+  return Math.max(0, EXPIRATION_MS - (Date.now() - last));
+}
+
+export async function findCardBySteamId(steamId){
+  const q = query(collection(db, "playerCards"), where("steamId", "==", steamId.trim()));
+  const snap = await getDocs(q);
+  if(snap.empty) return null;
+  const d = snap.docs[0];
+  return { id: d.id, ...d.data() };
+}
+
+export async function getCard(cardId){
+  const d = await getDoc(doc(db, "playerCards", cardId));
+  return d.exists() ? { id: d.id, ...d.data() } : null;
+}
+
+export async function listAllCards(){
+  const snap = await getDocs(query(collection(db, "playerCards"), orderBy("lastTransactionAt", "desc")));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+function generatePin(){
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let pin = "";
+  for(let i=0;i<6;i++) pin += chars[Math.floor(Math.random()*chars.length)];
+  return pin;
+}
+
+export async function createCard({ steamId, playerName, staff }){
+  const existing = await findCardBySteamId(steamId);
+  if(existing) throw new Error("Une carte existe déjà pour ce Steam ID.");
+  const pin = generatePin();
+  const ref = await addDoc(collection(db, "playerCards"), {
+    steamId: steamId.trim(), playerName: playerName.trim(), balance: 0, pin,
+    createdAt: serverTimestamp(), lastTransactionAt: serverTimestamp(),
+    createdBy: staff?.id || null, createdByName: staff?.name || null, status: "active"
+  });
+  await logAction({
+    action: "CARTE_CREEE", detail: `Nouvelle carte pour ${playerName} (${steamId})`,
+    steamId, playerName, staffId: staff?.id, staffName: staff?.name
+  });
+  return { id: ref.id, pin };
+}
+
+/* Ajuste le solde d'une carte de façon atomique (dépôt, retrait, mise, gain, perte).
+   amount positif = crédit, négatif = débit. Rejette si le solde deviendrait négatif. */
+export async function adjustBalance({ cardId, amount, type, staff, gameId, note }){
+  const cardRef = doc(db, "playerCards", cardId);
+  let result;
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(cardRef);
+    if(!snap.exists()) throw new Error("Carte introuvable.");
+    const card = snap.data();
+    const newBalance = (card.balance || 0) + amount;
+    if(newBalance < 0) throw new Error("Solde insuffisant.");
+    tx.update(cardRef, { balance: newBalance, lastTransactionAt: serverTimestamp(), status: "active" });
+    result = { steamId: card.steamId, playerName: card.playerName, balanceAfter: newBalance };
+  });
+
+  await addDoc(collection(db, "transactions"), {
+    cardId, steamId: result.steamId, playerName: result.playerName,
+    type, amount, balanceAfter: result.balanceAfter,
+    staffId: staff?.id || null, staffName: staff?.name || null,
+    gameId: gameId || null, note: note || "", createdAt: serverTimestamp()
+  });
+
+  await logAction({
+    action: type.toUpperCase(), detail: note || "",
+    steamId: result.steamId, playerName: result.playerName,
+    staffId: staff?.id, staffName: staff?.name, amount, gameId
+  });
+
+  return result.balanceAfter;
+}
+
+export async function cardTransactions(cardId, max = 30){
+  const q = query(collection(db, "transactions"), where("cardId", "==", cardId), orderBy("createdAt", "desc"), limit(max));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export async function totalTokensInCirculation(){
+  const cards = await listAllCards();
+  return cards.reduce((sum, c) => sum + (isExpired(c) ? 0 : (c.balance || 0)), 0);
+}

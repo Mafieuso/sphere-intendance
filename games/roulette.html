@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Roulette — Sphère de l'Intendance</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Cinzel+Decorative:wght@700&family=Noto+Sans+JP:wght@200;300;400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/css/theme.css">
+<style>
+.wrap{max-width:760px;margin:0 auto;padding:30px 20px 80px;position:relative;z-index:2;}
+.gtop{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;gap:10px;flex-wrap:wrap;}
+.balance-pill{font-family:'Cinzel',serif;font-size:.85rem;color:var(--gold2);border:1px solid var(--border-h);padding:8px 16px;border-radius:20px;background:rgba(201,162,39,.05);}
+.wheel-stage{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px 0 10px;}
+.wheel{width:180px;height:180px;border-radius:50%;position:relative;
+  background:conic-gradient(from 0deg,#7a0e14 0deg 20deg,#111 20deg 40deg,#7a0e14 40deg 60deg,#111 60deg 80deg,
+    #7a0e14 80deg 100deg,#111 100deg 120deg,#7a0e14 120deg 140deg,#111 140deg 160deg,#7a0e14 160deg 180deg,#111 180deg 200deg,
+    #7a0e14 200deg 220deg,#111 220deg 240deg,#7a0e14 240deg 260deg,#111 260deg 280deg,#7a0e14 280deg 300deg,#111 300deg 320deg,
+    #7a0e14 320deg 340deg,#111 340deg 360deg);
+  border:4px solid var(--gold);box-shadow:0 10px 40px rgba(0,0,0,.6),0 0 40px rgba(201,162,39,.15);transition:transform 3.6s cubic-bezier(.15,.85,.25,1);}
+.wheel::after{content:'';position:absolute;inset:30%;border-radius:50%;background:radial-gradient(circle,#1a0d05,#050202);border:2px solid rgba(201,162,39,.4);}
+.wheel.spin{transform:rotate(1800deg);}
+.result-number{font-family:'Cinzel',serif;font-size:2.6rem;font-weight:900;text-align:center;margin-top:14px;min-height:60px;}
+.result-number.red{color:#ff4444;text-shadow:0 0 30px rgba(255,50,50,.5);}
+.result-number.black{color:#ddd;text-shadow:0 0 30px rgba(255,255,255,.2);}
+.result-number.green{color:#5ee0af;text-shadow:0 0 30px rgba(31,174,124,.5);}
+.status-line{text-align:center;font-family:'Cinzel',serif;font-size:.65rem;letter-spacing:3px;color:var(--text-muted);text-transform:uppercase;margin-top:6px;}
+
+.board{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px;}
+.color-btn{padding:20px;border-radius:10px;font-family:'Cinzel',serif;letter-spacing:3px;text-transform:uppercase;font-size:.8rem;
+  border:2px solid transparent;transition:.2s;}
+.color-btn.red{background:linear-gradient(160deg,#7a0e14,#3a0508);color:#ffaaaa;}
+.color-btn.black{background:linear-gradient(160deg,#1a1a1a,#050505);color:#ddd;}
+.color-btn.selected{border-color:var(--gold);box-shadow:0 0 20px rgba(201,162,39,.3);}
+.numbers-grid{display:grid;grid-template-columns:repeat(9,1fr);gap:4px;margin-top:12px;}
+.num-cell{aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-weight:700;
+  font-size:.68rem;border-radius:5px;border:1px solid rgba(255,255,255,.08);cursor:pointer;transition:.15s;}
+.num-cell.red{background:rgba(122,14,20,.35);color:#ff9999;}
+.num-cell.black{background:rgba(255,255,255,.04);color:#ddd;}
+.num-cell.green{background:rgba(31,174,124,.2);color:#5ee0af;grid-column:1/-1;}
+.num-cell.selected{outline:2px solid var(--gold);}
+.bet-row{display:flex;gap:10px;margin-top:16px;align-items:flex-end;}
+.bet-row .form-group{flex:1;margin-bottom:0;}
+.bets-list{margin-top:16px;display:flex;flex-direction:column;gap:6px;max-height:180px;overflow-y:auto;}
+.bet-chip-row{display:flex;justify-content:space-between;font-size:.68rem;padding:7px 12px;background:rgba(255,255,255,.02);border-radius:5px;border:1px solid rgba(255,255,255,.05);}
+.croupier-controls{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;}
+</style>
+</head>
+<body>
+<div class="bg-fx"></div><canvas id="embers"></canvas><div id="grain"></div><div id="vignette"></div>
+<div class="particles" style="position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden"></div>
+<div id="toast-container"></div>
+
+<div class="wrap">
+  <div class="gtop">
+    <a href="#" id="backLink" class="btn btn-ghost btn-sm">← Retour</a>
+    <div class="balance-pill yen-tag" id="balancePill" style="display:none">—</div>
+  </div>
+  <div class="page-title" style="font-size:1.15rem;padding-bottom:8px;">🎡 Roulette Européenne</div>
+  <div class="page-sub" id="tableStatusLabel">Table roulette-1</div>
+
+  <div class="panel">
+    <div class="wheel-stage">
+      <div class="wheel" id="wheel"></div>
+      <div class="result-number" id="resultNumber">—</div>
+      <div class="status-line" id="statusLine">En attente du Croupier…</div>
+    </div>
+
+    <div id="croupierPanel" style="display:none">
+      <div class="croupier-controls">
+        <button class="btn btn-jade" id="btnNewRound">Ouvrir les Mises</button>
+        <button class="btn btn-crimson" id="btnCloseSpin">Fermer les Mises & Lancer</button>
+      </div>
+      <div class="bets-list" id="croupierBetsList"></div>
+    </div>
+
+    <div id="playerPanel" style="display:none">
+      <div class="board">
+        <button class="color-btn red" data-type="color" data-value="rouge">🔴 Rouge (×2)</button>
+        <button class="color-btn black" data-type="color" data-value="noir">⚫ Noir (×2)</button>
+      </div>
+      <div class="numbers-grid" id="numbersGrid"></div>
+      <div class="bet-row">
+        <div class="form-group"><label class="form-label">Mise (¥)</label><input class="form-input" id="betAmount" type="number" min="1" value="25"></div>
+        <button class="btn btn-solid" id="btnPlaceBet">Miser</button>
+      </div>
+      <div class="form-hint" id="myBetHint"></div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { initFx } from "../assets/js/fx.js";
+import { toast } from "../assets/js/toast.js";
+import { getSession, roleLabel } from "../assets/js/session.js";
+import { getPlayerSession } from "../assets/js/playerSession.js";
+import { getCard, adjustBalance, isExpired } from "../assets/js/cards.js";
+import {
+  db, doc, getDoc, setDoc, collection, addDoc, query, where, getDocs, onSnapshot, serverTimestamp
+} from "../assets/js/firebase-init.js";
+
+initFx();
+
+const TABLE_ID = "roulette-1";
+const tableRef = doc(db, "tables", TABLE_ID);
+const RED_NUMBERS = new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
+function numberColor(n){ if(n===0) return "green"; return RED_NUMBERS.has(n) ? "red" : "black"; }
+function colorLabel(c){ return c==="red"?"rouge":c==="black"?"noir":"vert"; }
+
+const staff = getSession();
+const player = getPlayerSession();
+const isCroupier = staff && (staff.role === "croupier" || staff.role === "admin");
+
+document.getElementById("backLink").href = isCroupier ? "../croupier.html" : "../carte.html";
+if(!isCroupier) document.getElementById("backLink").textContent = "← Ma Carte";
+
+if(isCroupier){ document.getElementById("croupierPanel").style.display = "block"; }
+if(player){
+  document.getElementById("playerPanel").style.display = "block";
+  document.getElementById("balancePill").style.display = "inline-block";
+  refreshBalance();
+}
+
+async function refreshBalance(){
+  if(!player) return;
+  const card = await getCard(player.id);
+  document.getElementById("balancePill").textContent = "¥ " + (card?.balance ?? 0);
+}
+
+/* Grille des numéros 0-36 */
+const grid = document.getElementById("numbersGrid");
+if(grid){
+  const zero = document.createElement("div");
+  zero.className = "num-cell green"; zero.textContent = "0"; zero.dataset.type="number"; zero.dataset.value="0";
+  grid.appendChild(zero);
+  for(let n=1;n<=36;n++){
+    const c = document.createElement("div");
+    c.className = "num-cell " + numberColor(n);
+    c.textContent = n; c.dataset.type = "number"; c.dataset.value = n;
+    grid.appendChild(c);
+  }
+}
+
+let selectedBet = null; // { type, value }
+document.querySelectorAll(".color-btn, .num-cell").forEach(el => {
+  el.addEventListener("click", () => {
+    document.querySelectorAll(".color-btn, .num-cell").forEach(x=>x.classList.remove("selected"));
+    el.classList.add("selected");
+    selectedBet = { type: el.dataset.type, value: el.dataset.value };
+  });
+});
+
+/* Assure l'existence du doc de table */
+async function ensureTable(){
+  const snap = await getDoc(tableRef);
+  if(!snap.exists()){
+    await setDoc(tableRef, { status: "closed", roundId: 0, result: null, croupierName: null, updatedAt: serverTimestamp() });
+  }
+}
+ensureTable();
+
+/* ── Placer une mise (joueur) ── */
+document.getElementById("btnPlaceBet")?.addEventListener("click", async () => {
+  if(!selectedBet) return toast("Choisis une couleur ou un numéro.", "warn");
+  const amount = parseInt(document.getElementById("betAmount").value, 10);
+  if(!amount || amount <= 0) return toast("Mise invalide.", "warn");
+  const tableSnap = await getDoc(tableRef);
+  const table = tableSnap.data();
+  if(!table || table.status !== "betting") return toast("Les mises ne sont pas ouvertes.", "warn");
+  const card = await getCard(player.id);
+  if(isExpired(card)) return toast("Carte expirée.", "error");
+  if(card.balance < amount) return toast("Solde insuffisant.", "warn");
+
+  await adjustBalance({ cardId: player.id, amount: -amount, type: "mise", gameId: "roulette", note: `Mise ¥${amount} sur ${selectedBet.type==='color'?colorLabel(selectedBet.value):('numéro '+selectedBet.value)}` });
+  await addDoc(collection(db, "tables", TABLE_ID, "bets"), {
+    roundId: table.roundId, cardId: player.id, steamId: player.steamId, playerName: player.playerName,
+    amount, betType: selectedBet.type, betValue: selectedBet.value, createdAt: serverTimestamp()
+  });
+  toast("Mise placée !", "success");
+  document.getElementById("myBetHint").textContent = `Mise en cours : ¥${amount} sur ${selectedBet.type==='color'?colorLabel(selectedBet.value):selectedBet.value}`;
+  refreshBalance();
+});
+
+/* ── Contrôles Croupier ── */
+document.getElementById("btnNewRound")?.addEventListener("click", async () => {
+  const snap = await getDoc(tableRef);
+  const table = snap.data() || { roundId: 0 };
+  await setDoc(tableRef, {
+    status: "betting", roundId: (table.roundId||0) + 1, result: null,
+    croupierName: staff.name, updatedAt: serverTimestamp()
+  });
+  toast("Nouvelle manche ouverte — les joueurs peuvent miser.", "success");
+});
+
+document.getElementById("btnCloseSpin")?.addEventListener("click", async () => {
+  const snap = await getDoc(tableRef);
+  const table = snap.data();
+  if(!table || table.status !== "betting") return toast("Aucune manche ouverte.", "warn");
+
+  await setDoc(tableRef, { ...table, status: "spinning", updatedAt: serverTimestamp() });
+  const result = Math.floor(Math.random()*37);
+
+  setTimeout(async () => {
+    // Résoudre les mises de la manche
+    const betsQ = query(collection(db, "tables", TABLE_ID, "bets"), where("roundId", "==", table.roundId));
+    const betsSnap = await getDocs(betsQ);
+    const color = numberColor(result);
+    for(const b of betsSnap.docs){
+      const bet = b.data();
+      let win = false, payout = 0;
+      if(bet.betType === "color" && bet.betValue === (color==="red"?"rouge":color==="black"?"noir":"__none__")){ win = true; payout = bet.amount*2; }
+      if(bet.betType === "number" && parseInt(bet.betValue,10) === result){ win = true; payout = bet.amount*36; }
+      if(win){
+        await adjustBalance({ cardId: bet.cardId, amount: payout, type: "gain", gameId: "roulette", note: `Roulette manche #${table.roundId} — numéro ${result}` });
+      }
+    }
+    await setDoc(tableRef, { ...table, status: "result", result, updatedAt: serverTimestamp() });
+  }, 3700);
+
+  toast("Roue lancée !", "info");
+});
+
+/* ── Synchronisation live pour tout le monde ── */
+let lastStatus = null;
+onSnapshot(tableRef, (snap) => {
+  const table = snap.data();
+  if(!table) return;
+  const wheel = document.getElementById("wheel");
+  const statusLine = document.getElementById("statusLine");
+  const resultEl = document.getElementById("resultNumber");
+
+  if(table.status === "betting" && lastStatus !== "betting"){
+    statusLine.textContent = `Mises ouvertes — Croupier : ${table.croupierName || '—'}`;
+    resultEl.textContent = "—"; resultEl.className = "result-number";
+  }
+  if(table.status === "spinning" && lastStatus !== "spinning"){
+    statusLine.textContent = "La roue tourne…";
+    wheel.classList.remove("spin"); void wheel.offsetWidth; wheel.classList.add("spin");
+  }
+  if(table.status === "result" && lastStatus !== "result"){
+    statusLine.textContent = `Résultat — Manche #${table.roundId}`;
+    resultEl.textContent = table.result;
+    resultEl.className = "result-number " + numberColor(table.result);
+    refreshBalance();
+  }
+  if(table.status === "closed"){
+    statusLine.textContent = "En attente du Croupier…";
+  }
+  lastStatus = table.status;
+});
+
+/* Liste des mises en direct pour le Croupier */
+if(isCroupier){
+  onSnapshot(collection(db, "tables", TABLE_ID, "bets"), (snap) => {
+    const el = document.getElementById("croupierBetsList");
+    const bets = snap.docs.map(d=>d.data()).sort((a,b)=>(b.roundId-a.roundId)).slice(0,15);
+    if(!bets.length){ el.innerHTML = `<div class="empty-state"><p>Aucune mise.</p></div>`; return; }
+    el.innerHTML = bets.map(b => `<div class="bet-chip-row"><span>${b.playerName} — ${b.betType==='color'?colorLabel(b.betValue):('n°'+b.betValue)}</span><span class="yen-tag">${b.amount}</span></div>`).join('');
+  });
+}
+</script>
+</body>
+</html>
