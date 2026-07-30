@@ -49,18 +49,23 @@
 <script type="module">
 import { initFx } from "./assets/js/fx.js";
 import { initUiFx, staggerIn } from "./assets/js/uiFx.js";
-import { db, collection, query, where, onSnapshot } from "./assets/js/firebase-init.js";
+import { db, collection, query, orderBy, limit, onSnapshot } from "./assets/js/firebase-init.js";
 import { formatYen, tokensToYen } from "./assets/js/economy.js";
 initFx();
 initUiFx();
 staggerIn('.table-card');
 
 const MEDALS = ["🥇","🥈","🥉"];
-const gainsQ = query(collection(db, "transactions"), where("type", "==", "gain"));
+/* Bornée aux 800 transactions les plus récentes, tous types confondus (quota de
+   lectures Firestore — un filtre "type == gain" combiné à un tri par date
+   nécessiterait un index composite). Le filtre "gain" se fait côté client :
+   le classement reste représentatif sans relire tout l'historique à chaque visite. */
+const gainsQ = query(collection(db, "transactions"), orderBy("createdAt","desc"), limit(800));
 onSnapshot(gainsQ, (snap) => {
   const totals = new Map();
   snap.docs.forEach(d => {
     const t = d.data();
+    if(t.type !== "gain") return;
     const entry = totals.get(t.cardId) || { playerName: t.playerName, total: 0 };
     entry.total += (t.amount || 0);
     entry.playerName = t.playerName;

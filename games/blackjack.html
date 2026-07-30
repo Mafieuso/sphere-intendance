@@ -121,7 +121,7 @@ import { getPlayerSession } from "../assets/js/playerSession.js";
 import { getCard, adjustBalance, isExpired, isSuspended } from "../assets/js/cards.js";
 import { tokenDisplayHTML, formatYen, tokensToYen } from "../assets/js/economy.js";
 import {
-  db, doc, getDoc, setDoc, collection, addDoc, updateDoc, query, where, getDocs, onSnapshot, serverTimestamp
+  db, doc, getDoc, setDoc, collection, addDoc, updateDoc, query, where, orderBy, limit, getDocs, onSnapshot, serverTimestamp
 } from "../assets/js/firebase-init.js";
 
 initFx();
@@ -204,11 +204,19 @@ document.getElementById("btnReveal")?.addEventListener("click", async (e) => {
   const snap = await getDoc(tableRef);
   const t = snap.data();
   if(!t || t.status !== "playing"){ toast("La manche n'est pas en cours.", "warn"); e.target.disabled = false; return; }
+
+  const seatsSnap = await getDocs(query(seatsCol, where("roundId","==",t.roundId)));
+  const stillPlaying = seatsSnap.docs.some(d => d.data().status === "playing");
+  if(stillPlaying){
+    toast("Certains joueurs n'ont pas fini leur tour (Tirer/Rester).", "warn");
+    e.target.disabled = false;
+    return;
+  }
+
   let dealerHand = [...t.dealerHand];
   while(handTotal(dealerHand) < 17) dealerHand.push(randomCard());
   const dealerTotal = handTotal(dealerHand);
 
-  const seatsSnap = await getDocs(query(seatsCol, where("roundId","==",t.roundId)));
   for(const s of seatsSnap.docs){
     const seat = s.data();
     const pTotal = handTotal(seat.hand || []);
@@ -253,7 +261,7 @@ document.getElementById("btnJoin")?.addEventListener("click", async () => {
     if(!existing.empty) return toast("Tu es déjà à la table pour cette manche.", "warn");
 
     await adjustBalance({ cardId: player.id, amount: -amount, type: "mise", gameId: "blackjack", note: `Mise ${amount} jeton(s) au Blackjack` });
-    await addDoc(seatsCol, { roundId: t.roundId, cardId: player.id, steamId: player.steamId, playerName: player.playerName, bet: amount, hand: [], status: "waiting" });
+    await addDoc(seatsCol, { roundId: t.roundId, cardId: player.id, steamId: player.steamId, playerName: player.playerName, bet: amount, hand: [], status: "waiting", createdAt: serverTimestamp() });
     toast("Place à la table réservée.", "success");
     refreshBalance();
   }catch(e){
@@ -323,7 +331,9 @@ onSnapshot(tableRef, (snap) => {
   }
   renderSeats();
 });
-onSnapshot(seatsCol, () => renderSeats());
+/* Borné aux 30 sièges les plus récents (quota de lectures Firestore) — largement
+   suffisant pour une manche en cours, qui ne compte jamais autant de joueurs. */
+onSnapshot(query(seatsCol, orderBy("createdAt","desc"), limit(30)), () => renderSeats());
 
 const celebratedSeats = new Set();
 async function renderSeats(){

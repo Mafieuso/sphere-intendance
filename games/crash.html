@@ -109,7 +109,7 @@ import { getPlayerSession } from "../assets/js/playerSession.js";
 import { getCard, adjustBalance, isExpired, isSuspended } from "../assets/js/cards.js";
 import { tokenDisplayHTML, formatYen, tokensToYen } from "../assets/js/economy.js";
 import {
-  db, doc, getDoc, setDoc, collection, addDoc, updateDoc, query, where, getDocs,
+  db, doc, getDoc, setDoc, collection, addDoc, updateDoc, query, where, orderBy, limit, getDocs,
   onSnapshot, runTransaction, serverTimestamp
 } from "../assets/js/firebase-init.js";
 
@@ -373,8 +373,9 @@ onSnapshot(tableRef, (snap) => {
   lastStatus = t.status;
 });
 
-/* Liste des participants de la manche en cours */
-onSnapshot(collection(db, "tables", TABLE_ID, "bets"), (snap) => {
+/* Liste des participants de la manche en cours. Bornée aux 50 mises les plus
+   récentes (quota de lectures Firestore) — largement suffisant pour une manche. */
+onSnapshot(query(collection(db, "tables", TABLE_ID, "bets"), orderBy("createdAt","desc"), limit(50)), (snap) => {
   if(!currentTable) return;
   const bets = snap.docs.map(d=>d.data()).filter(b => b.roundId === currentTable.roundId);
   const el = document.getElementById("playersList");
