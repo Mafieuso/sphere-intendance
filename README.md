@@ -1,6 +1,6 @@
 # Sphère de l'Intendance
 
-Maison de jeu démoniaque de l'Ordre (univers Demon Slayer RP) — site 100% statique (HTML/CSS/JS, sans build), pensé pour GitHub Pages + Firebase.
+Maison de jeu clandestine de l'Ordre (univers Demon Slayer RP — façade humaine, aucune référence démoniaque côté joueurs) — site 100% statique (HTML/CSS/JS, sans build), pensé pour GitHub Pages + Firebase.
 
 **⚠️ Avant d'ouvrir le site : configure Firebase.** Voir [`SETUP.md`](SETUP.md) — sans ça, rien ne fonctionnera (erreurs Firebase dans la console).
 
@@ -19,7 +19,7 @@ Maison de jeu démoniaque de l'Ordre (univers Demon Slayer RP) — site 100% sta
 | `games/dice.html` | Dés (solo, devine 1-6, ×5) | Joueur |
 | `games/roulette.html` | Roulette européenne multijoueur | Croupier pilote, joueurs misent, spectateurs observent |
 | `games/blackjack.html` | Blackjack multijoueur | Croupier pilote, joueurs misent, spectateurs observent |
-| `games/crash.html` | Ascension Démoniaque (crash game) | Joueurs pilotent ensemble |
+| `games/crash.html` | Ascension Fulgurante (crash game) | Joueurs pilotent ensemble |
 
 ## Rôles & Permissions
 

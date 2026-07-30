@@ -17,7 +17,7 @@
 <div class="gate-wrap">
   <div class="gate-crest">⛩ ✦ ⛩</div>
   <div class="gate-title">SPHÈRE DE<br>L'INTENDANCE</div>
-  <div class="gate-sub">Maison de Jeu de l'Ordre Démoniaque</div>
+  <div class="gate-sub">Cercle Privé — Sur Invitation Uniquement</div>
 
   <div class="gate-grid">
     <a class="gate-card" href="carte.html" style="--gc:#c9a227;--gc-glow:rgba(201,162,39,.2)">
@@ -40,7 +40,10 @@
 
 <script type="module">
 import { initFx } from "./assets/js/fx.js";
+import { initUiFx, staggerIn } from "./assets/js/uiFx.js";
 initFx();
+initUiFx();
+staggerIn('.gate-card');
 </script>
 </body>
 </html>

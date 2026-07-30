@@ -43,6 +43,17 @@
 .bets-list{margin-top:16px;display:flex;flex-direction:column;gap:6px;max-height:180px;overflow-y:auto;}
 .bet-chip-row{display:flex;justify-content:space-between;font-size:.68rem;padding:7px 12px;background:rgba(255,255,255,.02);border-radius:5px;border:1px solid rgba(255,255,255,.05);}
 .croupier-controls{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;}
+.balance-pill{transition:.2s;}
+.balance-pill.pulse{animation:pillPulse .5s ease;}
+@keyframes pillPulse{0%{transform:scale(1)}40%{transform:scale(1.08)}100%{transform:scale(1)}}
+.wheel-glow{position:absolute;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,rgba(201,162,39,.2),transparent 70%);opacity:0;transition:opacity .4s;pointer-events:none;}
+.wheel-glow.on{opacity:1;animation:glowPulse 1s ease-in-out infinite;}
+.wheel-stage{position:relative;}
+.num-cell.winning{animation:numWin 1s ease-in-out 3;box-shadow:0 0 0 2px var(--gold);z-index:2;}
+@keyframes numWin{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}
+.quick-bets{display:flex;gap:6px;margin-top:6px;}
+.quick-bet-btn{flex:1;padding:5px;font-size:.56rem;font-family:'Cinzel',serif;letter-spacing:1px;border-radius:5px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);color:var(--text-muted);transition:.15s;}
+.quick-bet-btn:hover{border-color:rgba(201,162,39,.4);color:var(--gold);}
 </style>
 </head>
 <body>
@@ -53,13 +64,14 @@
 <div class="wrap">
   <div class="gtop">
     <a href="#" id="backLink" class="btn btn-ghost btn-sm">← Retour</a>
-    <div class="balance-pill yen-tag" id="balancePill" style="display:none">—</div>
+    <div class="balance-pill" id="balancePill" style="display:none">—</div>
   </div>
   <div class="page-title" style="font-size:1.15rem;padding-bottom:8px;">🎡 Roulette Européenne</div>
   <div class="page-sub" id="tableStatusLabel">Table roulette-1</div>
 
   <div class="panel">
     <div class="wheel-stage">
+      <div class="wheel-glow" id="wheelGlow"></div>
       <div class="wheel" id="wheel"></div>
       <div class="result-number" id="resultNumber">—</div>
       <div class="status-line" id="statusLine">En attente du Croupier…</div>
@@ -80,7 +92,15 @@
       </div>
       <div class="numbers-grid" id="numbersGrid"></div>
       <div class="bet-row">
-        <div class="form-group"><label class="form-label">Mise (¥)</label><input class="form-input" id="betAmount" type="number" min="1" value="25"></div>
+        <div class="form-group">
+          <label class="form-label">Mise (jetons — 1 🪙 = 50 000 ¥)</label>
+          <input class="form-input" id="betAmount" type="number" min="1" step="1" value="1">
+          <div class="quick-bets">
+            <button type="button" class="quick-bet-btn" data-v="1">1</button>
+            <button type="button" class="quick-bet-btn" data-v="5">5</button>
+            <button type="button" class="quick-bet-btn" data-v="10">10</button>
+          </div>
+        </div>
         <button class="btn btn-solid" id="btnPlaceBet">Miser</button>
       </div>
       <div class="form-hint" id="myBetHint"></div>
@@ -90,15 +110,18 @@
 
 <script type="module">
 import { initFx } from "../assets/js/fx.js";
+import { initUiFx, burst } from "../assets/js/uiFx.js";
 import { toast } from "../assets/js/toast.js";
 import { getSession, roleLabel } from "../assets/js/session.js";
 import { getPlayerSession } from "../assets/js/playerSession.js";
 import { getCard, adjustBalance, isExpired } from "../assets/js/cards.js";
+import { tokenDisplayHTML, formatYen, tokensToYen } from "../assets/js/economy.js";
 import {
   db, doc, getDoc, setDoc, collection, addDoc, query, where, getDocs, onSnapshot, serverTimestamp
 } from "../assets/js/firebase-init.js";
 
 initFx();
+initUiFx();
 
 const TABLE_ID = "roulette-1";
 const tableRef = doc(db, "tables", TABLE_ID);
@@ -120,11 +143,18 @@ if(player){
   refreshBalance();
 }
 
+let myBalance = 0;
 async function refreshBalance(){
   if(!player) return;
   const card = await getCard(player.id);
-  document.getElementById("balancePill").textContent = "¥ " + (card?.balance ?? 0);
+  myBalance = card?.balance ?? 0;
+  document.getElementById("balancePill").innerHTML = tokenDisplayHTML(myBalance, {small:true});
+  const pill = document.getElementById("balancePill");
+  pill.classList.remove("pulse"); void pill.offsetWidth; pill.classList.add("pulse");
 }
+document.querySelectorAll(".quick-bet-btn").forEach(b => b.addEventListener("click", () => {
+  document.getElementById("betAmount").value = b.dataset.v;
+}));
 
 /* Grille des numéros 0-36 */
 const grid = document.getElementById("numbersGrid");
@@ -170,13 +200,13 @@ document.getElementById("btnPlaceBet")?.addEventListener("click", async () => {
   if(isExpired(card)) return toast("Carte expirée.", "error");
   if(card.balance < amount) return toast("Solde insuffisant.", "warn");
 
-  await adjustBalance({ cardId: player.id, amount: -amount, type: "mise", gameId: "roulette", note: `Mise ¥${amount} sur ${selectedBet.type==='color'?colorLabel(selectedBet.value):('numéro '+selectedBet.value)}` });
+  await adjustBalance({ cardId: player.id, amount: -amount, type: "mise", gameId: "roulette", note: `Mise ${amount} jeton(s) sur ${selectedBet.type==='color'?colorLabel(selectedBet.value):('numéro '+selectedBet.value)}` });
   await addDoc(collection(db, "tables", TABLE_ID, "bets"), {
     roundId: table.roundId, cardId: player.id, steamId: player.steamId, playerName: player.playerName,
     amount, betType: selectedBet.type, betValue: selectedBet.value, createdAt: serverTimestamp()
   });
   toast("Mise placée !", "success");
-  document.getElementById("myBetHint").textContent = `Mise en cours : ¥${amount} sur ${selectedBet.type==='color'?colorLabel(selectedBet.value):selectedBet.value}`;
+  document.getElementById("myBetHint").textContent = `Mise en cours : ${amount} 🪙 (${formatYen(tokensToYen(amount))}) sur ${selectedBet.type==='color'?colorLabel(selectedBet.value):selectedBet.value}`;
   refreshBalance();
 });
 
@@ -234,12 +264,18 @@ onSnapshot(tableRef, (snap) => {
   }
   if(table.status === "spinning" && lastStatus !== "spinning"){
     statusLine.textContent = "La roue tourne…";
+    document.getElementById("wheelGlow").classList.add("on");
     wheel.classList.remove("spin"); void wheel.offsetWidth; wheel.classList.add("spin");
+    document.querySelectorAll(".num-cell.winning").forEach(c => c.classList.remove("winning"));
   }
   if(table.status === "result" && lastStatus !== "result"){
     statusLine.textContent = `Résultat — Manche #${table.roundId}`;
     resultEl.textContent = table.result;
     resultEl.className = "result-number " + numberColor(table.result);
+    document.getElementById("wheelGlow").classList.remove("on");
+    const winCell = document.querySelector(`.num-cell[data-value="${table.result}"]`);
+    if(winCell) winCell.classList.add("winning");
+    if(player) checkMyWin(table);
     refreshBalance();
   }
   if(table.status === "closed"){
@@ -254,8 +290,28 @@ if(isCroupier){
     const el = document.getElementById("croupierBetsList");
     const bets = snap.docs.map(d=>d.data()).sort((a,b)=>(b.roundId-a.roundId)).slice(0,15);
     if(!bets.length){ el.innerHTML = `<div class="empty-state"><p>Aucune mise.</p></div>`; return; }
-    el.innerHTML = bets.map(b => `<div class="bet-chip-row"><span>${b.playerName} — ${b.betType==='color'?colorLabel(b.betValue):('n°'+b.betValue)}</span><span class="yen-tag">${b.amount}</span></div>`).join('');
+    el.innerHTML = bets.map(b => `<div class="bet-chip-row"><span>${b.playerName} — ${b.betType==='color'?colorLabel(b.betValue):('n°'+b.betValue)}</span><span>${b.amount} 🪙</span></div>`).join('');
   });
+}
+
+/* Détecte si le joueur a gagné sur cette manche pour célébrer localement */
+async function checkMyWin(table){
+  try{
+    const mine = await getDocs(query(collection(db,"tables",TABLE_ID,"bets"), where("roundId","==",table.roundId), where("cardId","==",player.id)));
+    if(mine.empty) return;
+    const color = numberColor(table.result);
+    let won = false;
+    mine.docs.forEach(d => {
+      const bet = d.data();
+      if(bet.betType === "color" && bet.betValue === (color==="red"?"rouge":color==="black"?"noir":"__none__")) won = true;
+      if(bet.betType === "number" && parseInt(bet.betValue,10) === table.result) won = true;
+    });
+    if(won){
+      toast("🎉 Numéro gagnant ! Tes gains sont crédités.", "success");
+      const wheelRect = document.getElementById("wheel").getBoundingClientRect();
+      burst(wheelRect.left + wheelRect.width/2, wheelRect.top + wheelRect.height/2);
+    }
+  }catch(e){ /* silencieux */ }
 }
 </script>
 </body>

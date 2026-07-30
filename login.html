@@ -46,10 +46,12 @@
 
 <script type="module">
 import { initFx } from "./assets/js/fx.js";
+import { initUiFx } from "./assets/js/uiFx.js";
 import { toast } from "./assets/js/toast.js";
 import { loginWithPin, roleLabel, getSession } from "./assets/js/session.js";
 
 initFx();
+initUiFx({ tilt: false });
 
 // Déjà connecté ? on redirige direct.
 const params = new URLSearchParams(location.search);

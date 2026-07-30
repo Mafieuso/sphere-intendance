@@ -44,11 +44,14 @@
 
 <script type="module">
 import { initFx } from "./assets/js/fx.js";
+import { initUiFx, staggerIn } from "./assets/js/uiFx.js";
 import { toast } from "./assets/js/toast.js";
 import { unlockCard, getPlayerSession, clearPlayerSession } from "./assets/js/playerSession.js";
 import { getCard, cardTransactions, isExpired, msUntilExpiration } from "./assets/js/cards.js";
+import { tokenDisplayHTML, formatYen, tokensToYen } from "./assets/js/economy.js";
 
 initFx();
+initUiFx();
 
 const unlockView = document.getElementById("unlockView");
 const cardView = document.getElementById("cardView");
@@ -96,7 +99,7 @@ async function renderCard(){
       </div>
       <div class="cv-name">${card.playerName}</div>
       <div class="cv-steam">${card.steamId}</div>
-      <div class="cv-balance-row"><div class="cv-balance yen-tag">${card.balance}</div></div>
+      <div class="cv-balance-row"><div class="cv-balance">${tokenDisplayHTML(card.balance)}</div></div>
       <div class="cv-expire">${expired ? "Aucune activité depuis plus de 24h — repasse à la caisse pour la réactiver." : `Expire dans ${hoursLeft}h sans activité.`}</div>
     </div>
 
@@ -109,7 +112,7 @@ async function renderCard(){
       <a class="game-tile" href="games/dice.html" style="--gc:#1fae7c"><div class="gi">🎲</div><div class="gn">Lancer de Dés</div></a>
       <a class="game-tile" href="games/roulette.html" style="--gc:#b3121a"><div class="gi">🎡</div><div class="gn">Roulette</div></a>
       <a class="game-tile" href="games/blackjack.html" style="--gc:#c9a227"><div class="gi">🃏</div><div class="gn">Blackjack</div></a>
-      <a class="game-tile" href="games/crash.html" style="--gc:#b3121a"><div class="gi">📈</div><div class="gn">Ascension Démoniaque</div></a>
+      <a class="game-tile" href="games/crash.html" style="--gc:#b3121a"><div class="gi">📈</div><div class="gn">Ascension Fulgurante</div></a>
     </div>
 
     <div class="panel" style="margin-top:28px;">
@@ -119,6 +122,7 @@ async function renderCard(){
   `;
 
   document.getElementById("btnLock").addEventListener("click", () => { clearPlayerSession(); renderUnlock(); });
+  staggerIn('.game-tile');
 
   const txs = await cardTransactions(card.id, 25);
   const typeColor = { depot:'#1fae7c', retrait:'#c9282f', mise:'#c9a227', gain:'#1fae7c', perte:'#c9282f' };
@@ -130,7 +134,7 @@ async function renderCard(){
       const date = t.createdAt?.toDate ? t.createdAt.toDate().toLocaleString('fr-FR') : '—';
       return `<div class="log-entry" style="--lc:${c}">
         <span class="log-action">${t.type}</span>
-        <span class="log-detail">${t.amount>0?'+':''}${t.amount}¥ ${t.note?('— '+t.note):''} ${t.staffName?('· '+t.staffName):''}</span>
+        <span class="log-detail">${t.amount>0?'+':''}${t.amount} 🪙 (${formatYen(tokensToYen(t.amount))}) ${t.note?('— '+t.note):''} ${t.staffName?('· '+t.staffName):''}</span>
         <span class="log-date">${date}</span>
       </div>`;
     }).join('')}</div>`;

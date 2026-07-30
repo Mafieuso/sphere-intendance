@@ -51,15 +51,18 @@
     <div class="tables-grid">
       <a class="table-card" href="games/roulette.html" style="--gc:#b3121a"><div class="ti">🎡</div><div class="tn">Roulette Européenne</div><div class="td">Ouvre les mises, lance la roue, les gains sont réglés automatiquement.</div></a>
       <a class="table-card" href="games/blackjack.html" style="--gc:#c9a227"><div class="ti">🃏</div><div class="tn">Blackjack</div><div class="td">Distribue les cartes, révèle le croupier, résous la manche.</div></a>
-      <a class="table-card" href="games/crash.html" style="--gc:#1fae7c"><div class="ti">📈</div><div class="tn">Ascension Démoniaque</div><div class="td">Ouvre une manche — le décollage et l'encaissement sont gérés par les joueurs.</div></a>
+      <a class="table-card" href="games/crash.html" style="--gc:#1fae7c"><div class="ti">📈</div><div class="tn">Ascension Fulgurante</div><div class="td">Ouvre une manche — le décollage et l'encaissement sont gérés par les joueurs.</div></a>
     </div>
   </main>
 </div>
 
 <script type="module">
 import { initFx } from "./assets/js/fx.js";
+import { initUiFx, staggerIn } from "./assets/js/uiFx.js";
 import { requireRole, renderStaffBadge } from "./assets/js/session.js";
 initFx();
+initUiFx();
+staggerIn('.table-card');
 const staff = requireRole(["croupier"]);
 if(staff){ renderStaffBadge(); }
 </script>

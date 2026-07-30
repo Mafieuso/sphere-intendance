@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ascension Démoniaque — Sphère de l'Intendance</title>
+<title>Ascension Fulgurante — Sphère de l'Intendance</title>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Cinzel+Decorative:wght@700&family=Noto+Sans+JP:wght@200;300;400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/css/theme.css">
 <style>
@@ -20,9 +20,17 @@
 .controls-row{display:flex;gap:10px;margin-top:18px;align-items:flex-end;}
 .controls-row .form-group{flex:1;margin-bottom:0;}
 .players-list{margin-top:16px;display:flex;flex-direction:column;gap:6px;}
-.pl-row{display:flex;justify-content:space-between;font-size:.7rem;padding:8px 12px;background:rgba(255,255,255,.02);border-radius:6px;border:1px solid rgba(255,255,255,.05);}
-.pl-row.win{border-color:rgba(31,174,124,.3);color:#5ee0af;}
+.pl-row{display:flex;justify-content:space-between;font-size:.7rem;padding:8px 12px;background:rgba(255,255,255,.02);border-radius:6px;border:1px solid rgba(255,255,255,.05);transition:.2s;}
+.pl-row.win{border-color:rgba(31,174,124,.3);color:#5ee0af;background:rgba(31,174,124,.06);}
 .pl-row.pending{color:var(--text-muted);}
+.balance-pill{transition:.2s;}
+.balance-pill.pulse{animation:pillPulse .5s ease;}
+@keyframes pillPulse{0%{transform:scale(1)}40%{transform:scale(1.08)}100%{transform:scale(1)}}
+.rocket{position:absolute;font-size:1.6rem;bottom:10px;left:8%;transition:left .1s linear,bottom .1s linear;filter:drop-shadow(0 0 8px rgba(240,208,96,.5));}
+.crash-stage.crashed-fx{animation:stageShake .5s;}
+@keyframes stageShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
+.ember-rise{position:absolute;bottom:8px;border-radius:50%;pointer-events:none;background:radial-gradient(circle,#ffcf7a,#ff5500 70%,transparent);animation:emberRise 1.4s linear forwards;}
+@keyframes emberRise{from{transform:translateY(0);opacity:.9}to{transform:translateY(-160px) translateX(var(--dx,0px));opacity:0}}
 </style>
 </head>
 <body>
@@ -33,20 +41,29 @@
 <div class="wrap">
   <div class="gtop">
     <a href="../carte.html" class="btn btn-ghost btn-sm">← Ma Carte</a>
-    <div class="balance-pill yen-tag" id="balancePill">—</div>
+    <div class="balance-pill" id="balancePill">—</div>
   </div>
-  <div class="page-title" style="font-size:1.15rem;padding-bottom:8px;">📈 Ascension Démoniaque</div>
+  <div class="page-title" style="font-size:1.15rem;padding-bottom:8px;">📈 Ascension Fulgurante</div>
   <div class="page-sub">Encaisse avant le crash — Mise partagée multijoueur</div>
 
   <div class="panel">
-    <div class="crash-stage">
+    <div class="crash-stage" id="crashStage">
       <div class="flame-track"></div>
+      <div class="rocket" id="rocket" style="display:none;">🚀</div>
       <div class="crash-mult" id="crashMult">1.00×</div>
       <div class="crash-status" id="crashStatus">En attente d'une manche…</div>
     </div>
 
     <div class="controls-row">
-      <div class="form-group"><label class="form-label">Mise (¥)</label><input class="form-input" id="betAmount" type="number" min="1" value="30"></div>
+      <div class="form-group">
+        <label class="form-label">Mise (jetons — 1 🪙 = 50 000 ¥)</label>
+        <input class="form-input" id="betAmount" type="number" min="1" step="1" value="1">
+        <div class="quick-bets" style="display:flex;gap:6px;margin-top:6px;">
+          <button type="button" class="quick-bet-btn" data-v="1" style="flex:1;padding:5px;font-size:.56rem;font-family:'Cinzel',serif;letter-spacing:1px;border-radius:5px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);color:var(--text-muted);">1</button>
+          <button type="button" class="quick-bet-btn" data-v="5" style="flex:1;padding:5px;font-size:.56rem;font-family:'Cinzel',serif;letter-spacing:1px;border-radius:5px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);color:var(--text-muted);">5</button>
+          <button type="button" class="quick-bet-btn" data-v="10" style="flex:1;padding:5px;font-size:.56rem;font-family:'Cinzel',serif;letter-spacing:1px;border-radius:5px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);color:var(--text-muted);">10</button>
+        </div>
+      </div>
       <button class="btn btn-jade" id="btnJoin">Miser sur la Manche</button>
     </div>
     <div class="croupier-controls" style="display:flex;gap:10px;margin-top:12px;">
@@ -61,23 +78,40 @@
 
 <script type="module">
 import { initFx } from "../assets/js/fx.js";
+import { initUiFx, burst } from "../assets/js/uiFx.js";
 import { toast } from "../assets/js/toast.js";
 import { requirePlayerCard } from "../assets/js/playerSession.js";
 import { getCard, adjustBalance, isExpired } from "../assets/js/cards.js";
+import { tokenDisplayHTML, formatYen, tokensToYen } from "../assets/js/economy.js";
 import {
   db, doc, getDoc, setDoc, collection, addDoc, updateDoc, query, where, getDocs,
   onSnapshot, runTransaction, serverTimestamp
 } from "../assets/js/firebase-init.js";
 
 initFx();
+initUiFx();
 const session = requirePlayerCard();
 const TABLE_ID = "crash-1";
 const tableRef = doc(db, "tables", TABLE_ID);
+document.querySelectorAll(".quick-bet-btn").forEach(b => b.addEventListener("click", () => {
+  document.getElementById("betAmount").value = b.dataset.v;
+}));
 
 refreshBalance();
 async function refreshBalance(){
   const card = await getCard(session.id);
-  document.getElementById("balancePill").textContent = "¥ " + (card?.balance ?? 0);
+  document.getElementById("balancePill").innerHTML = tokenDisplayHTML(card?.balance ?? 0, {small:true});
+  const pill = document.getElementById("balancePill");
+  pill.classList.remove("pulse"); void pill.offsetWidth; pill.classList.add("pulse");
+}
+
+function spawnEmber(stage){
+  const e = document.createElement("div");
+  e.className = "ember-rise";
+  const size = Math.random()*4+3;
+  e.style.cssText = `width:${size}px;height:${size}px;left:${8+Math.random()*10}%;--dx:${(Math.random()-.5)*40}px;`;
+  stage.appendChild(e);
+  setTimeout(() => e.remove(), 1400);
 }
 
 function genCrashPoint(){
@@ -125,7 +159,7 @@ document.getElementById("btnJoin").addEventListener("click", async () => {
   if(isExpired(card)) return toast("Carte expirée.", "error");
   if(card.balance < amount) return toast("Solde insuffisant.", "warn");
 
-  await adjustBalance({ cardId: session.id, amount: -amount, type: "mise", gameId: "crash", note: `Mise ¥${amount} — Ascension Démoniaque` });
+  await adjustBalance({ cardId: session.id, amount: -amount, type: "mise", gameId: "crash", note: `Mise ${amount} jeton(s) — Ascension Fulgurante` });
   const ref = await addDoc(collection(db, "tables", TABLE_ID, "bets"), {
     roundId: currentTable.roundId, cardId: session.id, steamId: session.steamId, playerName: session.playerName,
     amount, cashedOut: false, cashOutMultiplier: null, createdAt: serverTimestamp()
@@ -147,8 +181,11 @@ document.getElementById("btnCashout").addEventListener("click", async () => {
   const payout = Math.floor(amount * mult);
   await updateDoc(doc(db,"tables",TABLE_ID,"bets",bet.id), { cashedOut: true, cashOutMultiplier: mult });
   await adjustBalance({ cardId: session.id, amount: payout, type: "gain", gameId: "crash", note: `Encaissé à ${mult.toFixed(2)}×` });
-  toast(`Encaissé à ${mult.toFixed(2)}× — +¥${payout}`, "success");
-  document.getElementById("crashMult").classList.add("cashed");
+  toast(`Encaissé à ${mult.toFixed(2)}× — +${payout} 🪙 (${formatYen(tokensToYen(payout))})`, "success");
+  const multEl = document.getElementById("crashMult");
+  multEl.classList.add("cashed");
+  const r = multEl.getBoundingClientRect();
+  burst(r.left + r.width/2, r.top + r.height/2, { colors: ['#5ee0af','#f5d870'] });
   refreshBalance();
 });
 
@@ -157,20 +194,31 @@ function stopAnim(){ if(animTimer){ cancelAnimationFrame(animTimer); animTimer =
 function startAnim(startedAtMs, crashPoint){
   stopAnim();
   const el = document.getElementById("crashMult");
+  const rocket = document.getElementById("rocket");
+  const stage = document.getElementById("crashStage");
   el.classList.remove("crashed","cashed");
-  function tick(){
+  rocket.style.display = "block";
+  let lastEmber = 0;
+  function tick(now){
     const elapsed = (Date.now() - startedAtMs) / 1000;
     const mult = multiplierAt(elapsed);
     if(mult >= crashPoint){
       el.textContent = crashPoint.toFixed(2) + "×";
       el.classList.add("crashed");
+      rocket.style.display = "none";
+      stage.classList.add("crashed-fx");
+      setTimeout(() => stage.classList.remove("crashed-fx"), 500);
       handleLocalCrash(crashPoint);
       return;
     }
     el.textContent = mult.toFixed(2) + "×";
+    const progress = Math.min(1, (mult - 1) / 6);
+    rocket.style.left = (8 + progress * 78) + "%";
+    rocket.style.bottom = (10 + progress * 150) + "px";
+    if(!lastEmber || now - lastEmber > 90){ lastEmber = now; spawnEmber(stage); }
     animTimer = requestAnimationFrame(tick);
   }
-  tick();
+  animTimer = requestAnimationFrame(tick);
 }
 
 let crashHandled = false;
@@ -204,6 +252,7 @@ onSnapshot(tableRef, (snap) => {
     stopAnim();
     document.getElementById("crashMult").textContent = "1.00×";
     document.getElementById("crashMult").classList.remove("crashed","cashed");
+    document.getElementById("rocket").style.display = "none";
     statusLine.textContent = "Mises ouvertes — en attente du décollage";
     btnNew.style.display = "none"; btnLaunch.style.display = "inline-flex"; btnCashout.style.display = "none"; btnJoin.disabled = false;
   }
@@ -232,7 +281,7 @@ onSnapshot(collection(db, "tables", TABLE_ID, "bets"), (snap) => {
   if(!bets.length){ el.innerHTML = ""; return; }
   el.innerHTML = bets.map(b => `<div class="pl-row ${b.cashedOut?'win':'pending'}">
     <span>${b.playerName}</span>
-    <span>${b.cashedOut ? ('✓ '+b.cashOutMultiplier.toFixed(2)+'×') : ('¥'+b.amount+' en jeu')}</span>
+    <span>${b.cashedOut ? ('✓ '+b.cashOutMultiplier.toFixed(2)+'×') : (b.amount+' 🪙 en jeu')}</span>
   </div>`).join('');
 });
 </script>

@@ -3,7 +3,7 @@
    considérée expirée (calcul côté client à partir de lastTransactionAt,
    pas besoin de fonction planifiée côté serveur). */
 import {
-  db, collection, doc, getDoc, getDocs, addDoc, updateDoc, query, where,
+  db, collection, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, query, where,
   orderBy, limit, runTransaction, serverTimestamp
 } from "./firebase-init.js";
 import { logAction } from "./logs.js";
@@ -103,4 +103,29 @@ export async function cardTransactions(cardId, max = 30){
 export async function totalTokensInCirculation(){
   const cards = await listAllCards();
   return cards.reduce((sum, c) => sum + (isExpired(c) ? 0 : (c.balance || 0)), 0);
+}
+
+/* Profit net de la maison, en jetons : -somme des transactions liées à un jeu
+   (mise = la maison encaisse, gain = la maison paie). Les dépôts/retraits ne
+   comptent pas — ce ne sont que des échanges de devise, pas du profit de jeu. */
+export async function casinoProfitTokens(){
+  const snap = await getDocs(query(collection(db, "transactions"), where("gameId", "!=", null)));
+  return snap.docs.reduce((sum, d) => sum - (d.data().amount || 0), 0);
+}
+
+/* Supprime une carte joueur ainsi que toutes ses transactions et entrées de
+   journal d'audit associées (aucune trace ne doit subsister). */
+export async function deleteCard(cardId, steamId, staff){
+  const txSnap = await getDocs(query(collection(db, "transactions"), where("cardId", "==", cardId)));
+  for(const d of txSnap.docs){ await deleteDoc(doc(db, "transactions", d.id)); }
+
+  const logSnap = await getDocs(query(collection(db, "logs"), where("steamId", "==", steamId)));
+  for(const d of logSnap.docs){ await deleteDoc(doc(db, "logs", d.id)); }
+
+  await deleteDoc(doc(db, "playerCards", cardId));
+
+  await logAction({
+    action: "CARTE_SUPPRIMEE", detail: `Carte et historique effacés (Steam ID ${steamId})`,
+    staffId: staff?.id, staffName: staff?.name
+  });
 }

@@ -83,14 +83,31 @@
   </main>
 </div>
 
+<div class="modal-overlay" id="modalDeleteCard">
+  <div class="modal-box" style="max-width:440px;">
+    <div class="modal-title" style="color:#ff8a8a;">🗑 Supprimer cette carte ?</div>
+    <p style="font-size:.85rem;color:var(--text-muted);line-height:1.6;">
+      La carte de <strong id="delCardName" style="color:var(--text);"></strong> ainsi que <strong>tout son historique</strong>
+      (transactions et journal d'audit) seront définitivement effacés. Cette action est irréversible.
+    </p>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="document.getElementById('modalDeleteCard').classList.remove('open')">Annuler</button>
+      <button class="btn btn-crimson" id="btnConfirmDelete">Supprimer définitivement</button>
+    </div>
+  </div>
+</div>
+
 <script type="module">
 import { initFx } from "./assets/js/fx.js";
+import { initUiFx, burst } from "./assets/js/uiFx.js";
 import { toast } from "./assets/js/toast.js";
 import { requireRole, renderStaffBadge, getSession } from "./assets/js/session.js";
-import { findCardBySteamId, createCard, adjustBalance, isExpired, msUntilExpiration } from "./assets/js/cards.js";
+import { findCardBySteamId, createCard, adjustBalance, deleteCard, isExpired, msUntilExpiration } from "./assets/js/cards.js";
+import { tokenDisplayHTML, formatYen, tokensToYen, yenToTokens } from "./assets/js/economy.js";
 import { db, collection, query, orderBy, limit, onSnapshot } from "./assets/js/firebase-init.js";
 
 initFx();
+initUiFx();
 const staff = requireRole(["hote"]);
 if(staff){ renderStaffBadge(); }
 
@@ -137,17 +154,18 @@ function renderCardResult(card){
   }
   const expired = isExpired(card);
   box.innerHTML = `
-    <div class="card-result">
+    <div class="card-result wow-in">
       <div>
         <div class="cr-name">${card.playerName}</div>
         <div class="cr-steam">${card.steamId} · <span class="badge ${expired?'badge-expired':'badge-active'}">${expired?'Expirée':'Active'}</span></div>
       </div>
-      <div class="cr-balance yen-tag">${card.balance}</div>
+      <div class="cr-balance">${tokenDisplayHTML(card.balance)}</div>
     </div>
     <div class="tx-form">
       <div class="form-group">
-        <label class="form-label">Montant (¥ tokens)</label>
-        <input class="form-input" id="txAmount" type="number" min="1" placeholder="100">
+        <label class="form-label">Montant (jetons — 1 🪙 = 50 000 ¥)</label>
+        <input class="form-input" id="txAmount" type="number" min="1" placeholder="1">
+        <div class="form-hint" id="txYenPreview">≈ 0 ¥</div>
       </div>
       <div class="form-group">
         <label class="form-label">Note (optionnel)</label>
@@ -156,12 +174,20 @@ function renderCardResult(card){
       <button class="btn btn-jade" id="btnDeposit">+ Déposer</button>
       <button class="btn btn-crimson" id="btnWithdraw">− Retirer</button>
     </div>
+    <div style="margin-top:14px;text-align:right;">
+      <button class="btn btn-ghost btn-sm" id="btnDeleteCard" style="border-color:rgba(201,40,47,.3);color:#ff8a8a;">🗑 Supprimer la carte</button>
+    </div>
   `;
-  document.getElementById("btnDeposit").addEventListener("click", () => doTx(card.id, 1));
-  document.getElementById("btnWithdraw").addEventListener("click", () => doTx(card.id, -1));
+  document.getElementById("txAmount").addEventListener("input", (e) => {
+    const t = parseInt(e.target.value, 10) || 0;
+    document.getElementById("txYenPreview").textContent = `≈ ${formatYen(tokensToYen(t))}`;
+  });
+  document.getElementById("btnDeposit").addEventListener("click", (e) => doTx(card.id, 1, e));
+  document.getElementById("btnWithdraw").addEventListener("click", (e) => doTx(card.id, -1, e));
+  document.getElementById("btnDeleteCard").addEventListener("click", () => confirmDeleteCard(card));
 }
 
-async function doTx(cardId, sign){
+async function doTx(cardId, sign, evt){
   const amountRaw = parseInt(document.getElementById("txAmount").value, 10);
   const note = document.getElementById("txNote").value.trim();
   if(!amountRaw || amountRaw <= 0) return toast("Montant invalide.", "warn");
@@ -170,13 +196,34 @@ async function doTx(cardId, sign){
       cardId, amount: amountRaw * sign, type: sign > 0 ? "depot" : "retrait",
       staff, note
     });
-    toast(`${sign>0?'Dépôt':'Retrait'} effectué. Nouveau solde : ¥${balanceAfter}`, "success");
+    toast(`${sign>0?'Dépôt':'Retrait'} effectué. Nouveau solde : ${balanceAfter} 🪙 (${formatYen(tokensToYen(balanceAfter))})`, "success");
+    if(sign > 0 && evt){ burst(evt.clientX, evt.clientY); }
     currentCard = await findCardBySteamId(currentCard.steamId);
     renderCardResult(currentCard);
   }catch(e){
     toast(e.message, "error");
   }
 }
+
+let pendingDeleteCard = null;
+function confirmDeleteCard(card){
+  pendingDeleteCard = card;
+  document.getElementById("delCardName").textContent = `${card.playerName} (${card.steamId})`;
+  document.getElementById("modalDeleteCard").classList.add("open");
+}
+document.getElementById("btnConfirmDelete").addEventListener("click", async () => {
+  if(!pendingDeleteCard) return;
+  try{
+    await deleteCard(pendingDeleteCard.id, pendingDeleteCard.steamId, staff);
+    toast("Carte et historique supprimés.", "success");
+    document.getElementById("modalDeleteCard").classList.remove("open");
+    document.getElementById("cardResultBox").innerHTML = "";
+    document.getElementById("pinRevealBox").innerHTML = "";
+    currentCard = null;
+  }catch(e){
+    toast(e.message, "error");
+  }
+});
 
 /* Flux de transactions récentes en direct */
 const q = query(collection(db, "transactions"), orderBy("createdAt", "desc"), limit(20));
@@ -190,7 +237,7 @@ onSnapshot(q, (snap) => {
     const date = t.createdAt?.toDate ? t.createdAt.toDate().toLocaleString('fr-FR') : '—';
     return `<div class="log-entry" style="--lc:${c}">
       <span class="log-action">${t.type}</span>
-      <span class="log-detail"><strong>${t.playerName||t.steamId||'?'}</strong> — ${t.amount>0?'+':''}${t.amount}¥ ${t.staffName?('· par '+t.staffName):''}</span>
+      <span class="log-detail"><strong>${t.playerName||t.steamId||'?'}</strong> — ${t.amount>0?'+':''}${t.amount} 🪙 (${formatYen(tokensToYen(t.amount))}) ${t.staffName?('· par '+t.staffName):''}</span>
       <span class="log-date">${date}</span>
     </div>`;
   }).join('')}</div>`;

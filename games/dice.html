@@ -9,22 +9,37 @@
 <style>
 .wrap{max-width:520px;margin:0 auto;padding:30px 20px 80px;position:relative;z-index:2;}
 .gtop{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;gap:10px;flex-wrap:wrap;}
-.balance-pill{font-family:'Cinzel',serif;font-size:.85rem;color:var(--gold2);border:1px solid var(--border-h);padding:8px 16px;border-radius:20px;background:rgba(201,162,39,.05);}
-.dice-stage{display:flex;align-items:center;justify-content:center;height:160px;}
+.balance-pill{font-family:'Cinzel',serif;font-size:.8rem;color:var(--gold2);border:1px solid var(--border-h);padding:8px 16px;border-radius:20px;background:rgba(201,162,39,.05);transition:.2s;}
+.balance-pill.pulse{animation:pillPulse .5s ease;}
+@keyframes pillPulse{0%{transform:scale(1)}40%{transform:scale(1.08)}100%{transform:scale(1)}}
+.dice-stage{display:flex;align-items:center;justify-content:center;height:180px;perspective:600px;position:relative;}
+.die-glow{position:absolute;width:150px;height:150px;border-radius:20px;background:radial-gradient(circle,rgba(201,162,39,.22),transparent 70%);opacity:0;transition:opacity .3s;}
+.die-glow.on{opacity:1;animation:glowPulse 1s ease-in-out infinite;}
 .die{width:100px;height:100px;border-radius:16px;background:linear-gradient(150deg,#1a0a02,#0a0402);border:2px solid rgba(201,162,39,.4);
   display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-size:3rem;font-weight:900;color:var(--gold2);
-  box-shadow:0 10px 40px rgba(0,0,0,.6),0 0 30px rgba(201,162,39,.15);transition:transform .1s;}
-.die.rolling{animation:diceShake .8s ease-in-out;}
-@keyframes diceShake{0%,100%{transform:rotate(0)}20%{transform:rotate(-15deg) scale(1.05)}40%{transform:rotate(12deg)}60%{transform:rotate(-10deg)}80%{transform:rotate(8deg)}}
+  box-shadow:0 10px 40px rgba(0,0,0,.6),0 0 30px rgba(201,162,39,.15);transition:transform .1s;z-index:1;}
+.die.rolling{animation:diceTumble .8s cubic-bezier(.34,1.2,.4,1);}
+@keyframes diceTumble{0%{transform:rotate(0) scale(1)}15%{transform:rotate(-25deg) scale(1.08) translateY(-14px)}30%{transform:rotate(35deg) scale(.95) translateY(4px)}
+  45%{transform:rotate(-20deg) scale(1.05) translateY(-8px)}60%{transform:rotate(15deg) scale(1)}75%{transform:rotate(-8deg)}100%{transform:rotate(0) scale(1)}}
+.die.win-bounce{animation:dieBounce .6s ease-in-out infinite;}
+@keyframes dieBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
 .num-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin:20px 0;}
 .num-btn{aspect-ratio:1;border-radius:8px;border:2px solid rgba(255,255,255,.08);background:var(--panel);
   font-family:'Cinzel',serif;font-size:1.3rem;font-weight:900;color:var(--text-muted);transition:.2s;}
-.num-btn.selected{border-color:var(--gold);color:var(--gold);background:rgba(201,162,39,.1);box-shadow:0 0 18px rgba(201,162,39,.2);}
+.num-btn:hover{border-color:rgba(201,162,39,.3);}
+.num-btn.selected{border-color:var(--gold);color:var(--gold);background:rgba(201,162,39,.1);box-shadow:0 0 18px rgba(201,162,39,.2);transform:translateY(-2px);}
 .bet-row{display:flex;gap:10px;margin-top:8px;}
 .bet-row .form-group{flex:1;margin-bottom:0;}
-.result-banner{text-align:center;margin-top:18px;padding:14px;border-radius:8px;font-family:'Cinzel',serif;letter-spacing:2px;display:none;}
-.result-banner.win{display:block;background:rgba(31,174,124,.12);border:1px solid rgba(31,174,124,.35);color:#5ee0af;}
-.result-banner.loss{display:block;background:rgba(201,40,47,.12);border:1px solid rgba(201,40,47,.35);color:#ff8a8a;}
+.quick-bets{display:flex;gap:8px;margin-top:8px;}
+.quick-bet-btn{flex:1;padding:6px;font-size:.6rem;font-family:'Cinzel',serif;letter-spacing:1px;border-radius:6px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);color:var(--text-muted);transition:.15s;}
+.quick-bet-btn:hover{border-color:rgba(201,162,39,.4);color:var(--gold);}
+.result-banner{text-align:center;margin-top:18px;padding:14px;border-radius:8px;font-family:'Cinzel',serif;letter-spacing:2px;display:none;
+  transform:scale(.9);opacity:0;transition:transform .3s cubic-bezier(.34,1.56,.64,1),opacity .3s;}
+.result-banner.show{display:block;transform:scale(1);opacity:1;}
+.result-banner.win{background:rgba(31,174,124,.12);border:1px solid rgba(31,174,124,.35);color:#5ee0af;box-shadow:0 0 30px rgba(31,174,124,.15);}
+.result-banner.loss{background:rgba(201,40,47,.12);border:1px solid rgba(201,40,47,.35);color:#ff8a8a;}
+.shake{animation:shakeFx .4s;}
+@keyframes shakeFx{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-5px)}80%{transform:translateX(5px)}}
 </style>
 </head>
 <body>
@@ -35,16 +50,29 @@
 <div class="wrap">
   <div class="gtop">
     <a href="../carte.html" class="btn btn-ghost btn-sm">← Ma Carte</a>
-    <div class="balance-pill yen-tag" id="balancePill">—</div>
+    <div class="balance-pill" id="balancePill">—</div>
   </div>
   <div class="page-title" style="font-size:1.15rem;padding-bottom:8px;">Lancer de Dés</div>
-  <div class="page-sub">Devine le bon chiffre — Mise à 5×</div>
+  <div class="page-sub">Devine le bon chiffre — Gain net 4× la mise</div>
 
   <div class="panel">
-    <div class="dice-stage"><div class="die" id="die">?</div></div>
+    <div class="dice-stage">
+      <div class="die-glow" id="dieGlow"></div>
+      <div class="die" id="die">?</div>
+    </div>
     <div class="num-grid" id="numGrid"></div>
     <div class="bet-row">
-      <div class="form-group"><label class="form-label">Mise (¥)</label><input class="form-input" id="betAmount" type="number" min="1" value="20"></div>
+      <div class="form-group">
+        <label class="form-label">Mise (jetons — 1 🪙 = 50 000 ¥)</label>
+        <input class="form-input" id="betAmount" type="number" min="1" step="1" value="1">
+        <div class="quick-bets">
+          <button type="button" class="quick-bet-btn" data-v="1">1</button>
+          <button type="button" class="quick-bet-btn" data-v="5">5</button>
+          <button type="button" class="quick-bet-btn" data-v="10">10</button>
+          <button type="button" class="quick-bet-btn" data-v="max">Max</button>
+        </div>
+        <div class="form-hint" id="betYenPreview">≈ 50 000 ¥</div>
+      </div>
     </div>
     <button class="btn btn-solid btn-block btn-lg" id="btnPlay" style="margin-top:16px;">Lancer les Dés</button>
     <div class="result-banner" id="resultBanner"></div>
@@ -53,14 +81,18 @@
 
 <script type="module">
 import { initFx } from "../assets/js/fx.js";
+import { initUiFx, burst } from "../assets/js/uiFx.js";
 import { toast } from "../assets/js/toast.js";
 import { requirePlayerCard } from "../assets/js/playerSession.js";
 import { getCard, adjustBalance, isExpired } from "../assets/js/cards.js";
+import { tokenDisplayHTML, formatYen, tokensToYen } from "../assets/js/economy.js";
 
 initFx();
+initUiFx();
 const session = requirePlayerCard();
 let choice = null;
 let playing = false;
+let myBalance = 0;
 
 const grid = document.getElementById("numGrid");
 for(let n=1;n<=6;n++){
@@ -73,41 +105,72 @@ for(let n=1;n<=6;n++){
   grid.appendChild(b);
 }
 
+const betInput = document.getElementById("betAmount");
+function updateYenPreview(){
+  const t = parseInt(betInput.value, 10) || 0;
+  document.getElementById("betYenPreview").textContent = `≈ ${formatYen(tokensToYen(t))}`;
+}
+betInput.addEventListener("input", updateYenPreview);
+document.querySelectorAll(".quick-bet-btn").forEach(b => b.addEventListener("click", () => {
+  betInput.value = b.dataset.v === "max" ? Math.max(1, myBalance) : b.dataset.v;
+  updateYenPreview();
+}));
+
 async function refreshBalance(){
   const card = await getCard(session.id);
-  document.getElementById("balancePill").textContent = "¥ " + (card?.balance ?? 0);
+  myBalance = card?.balance ?? 0;
+  document.getElementById("balancePill").innerHTML = tokenDisplayHTML(myBalance, {small:true});
 }
 refreshBalance();
+updateYenPreview();
 
 document.getElementById("btnPlay").addEventListener("click", async () => {
   if(playing) return;
-  const bet = parseInt(document.getElementById("betAmount").value, 10);
+  const bet = parseInt(betInput.value, 10);
   if(!choice) return toast("Choisis un chiffre de 1 à 6.", "warn");
   if(!bet || bet <= 0) return toast("Mise invalide.", "warn");
   const card = await getCard(session.id);
   if(isExpired(card)) return toast("Carte expirée — repasse à la caisse.", "error");
-  if(card.balance < bet) return toast("Solde insuffisant.", "warn");
+  if(card.balance < bet) return toast("Solde de jetons insuffisant.", "warn");
 
   playing = true;
-  document.getElementById("resultBanner").className = "result-banner";
+  const banner = document.getElementById("resultBanner");
+  banner.className = "result-banner";
   const die = document.getElementById("die");
-  die.classList.remove("rolling"); void die.offsetWidth; die.classList.add("rolling");
+  const glow = document.getElementById("dieGlow");
+  glow.classList.add("on");
+  die.classList.remove("rolling","win-bounce"); void die.offsetWidth; die.classList.add("rolling");
+  die.textContent = "?";
 
   const roll = Math.floor(Math.random()*6) + 1;
   const win = roll === choice;
-  const net = win ? bet * 4 : -bet; // 5x payout total (mise conservée + 4x)
+  const net = win ? bet * 4 : -bet;
 
   setTimeout(async () => {
     die.textContent = roll;
+    glow.classList.remove("on");
     try{
       const balanceAfter = await adjustBalance({
         cardId: session.id, amount: net, type: win ? "gain" : "perte",
-        gameId: "dice", note: `Mise ¥${bet} sur ${choice}, résultat ${roll}`
+        gameId: "dice", note: `Mise ${bet} jeton(s) sur ${choice}, résultat ${roll}`
       });
-      const banner = document.getElementById("resultBanner");
       banner.classList.add(win ? "win" : "loss");
-      banner.textContent = win ? `✓ Gagné ! +¥${net} — Solde : ¥${balanceAfter}` : `✗ Perdu — ¥${bet} — Solde : ¥${balanceAfter}`;
-      document.getElementById("balancePill").textContent = "¥ " + balanceAfter;
+      requestAnimationFrame(() => banner.classList.add("show"));
+      banner.innerHTML = win
+        ? `✓ Gagné ! +${net} 🪙 (${formatYen(tokensToYen(net))}) — Solde : ${balanceAfter} 🪙`
+        : `✗ Perdu — ${bet} 🪙 (${formatYen(tokensToYen(bet))}) — Solde : ${balanceAfter} 🪙`;
+      myBalance = balanceAfter;
+      document.getElementById("balancePill").innerHTML = tokenDisplayHTML(balanceAfter, {small:true});
+      document.getElementById("balancePill").classList.remove("pulse"); void document.getElementById("balancePill").offsetWidth;
+      document.getElementById("balancePill").classList.add("pulse");
+      if(win){
+        die.classList.add("win-bounce");
+        const rect = die.getBoundingClientRect();
+        burst(rect.left + rect.width/2, rect.top + rect.height/2);
+      }else{
+        document.querySelector(".panel").classList.add("shake");
+        setTimeout(() => document.querySelector(".panel").classList.remove("shake"), 400);
+      }
     }catch(e){ toast(e.message, "error"); }
     playing = false;
   }, 800);

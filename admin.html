@@ -17,6 +17,7 @@
 .pin-reveal .pv{font-family:'Cinzel',serif;font-size:1.05rem;letter-spacing:4px;color:var(--gold2);margin-top:4px;}
 .cards-table{width:100%;border-collapse:collapse;}
 .cards-table td{padding:9px 6px;font-size:.72rem;border-bottom:1px solid rgba(255,255,255,.04);}
+.stat-yen{font-size:.55rem;color:var(--text-muted);margin-top:-2px;margin-bottom:4px;}
 </style>
 </head>
 <body>
@@ -54,7 +55,8 @@
   <main id="content">
 
     <div class="stats-grid">
-      <div class="stat-card" style="--sc:#c9a227"><div class="stat-icon">¥</div><div class="stat-val" id="statCirculation">0</div><div class="stat-label">Tokens en Circulation</div></div>
+      <div class="stat-card" style="--sc:#c9a227"><div class="stat-icon">🪙</div><div class="stat-val" id="statCirculation">0</div><div class="stat-yen" id="statCirculationYen">≈ 0 ¥</div><div class="stat-label">Jetons en Circulation</div></div>
+      <div class="stat-card" style="--sc:#5ee0af"><div class="stat-icon">💹</div><div class="stat-val" id="statProfit">0</div><div class="stat-yen" id="statProfitYen">≈ 0 ¥</div><div class="stat-label">Profit du Casino</div></div>
       <div class="stat-card" style="--sc:#1fae7c"><div class="stat-icon">🀄</div><div class="stat-val" id="statCards">0</div><div class="stat-label">Cartes Actives</div></div>
       <div class="stat-card" style="--sc:#555"><div class="stat-icon">⏳</div><div class="stat-val" id="statExpired">0</div><div class="stat-label">Cartes Expirées</div></div>
       <div class="stat-card" style="--sc:#b3121a"><div class="stat-icon">⚔</div><div class="stat-val" id="statStaff">0</div><div class="stat-label">Membres du Staff</div></div>
@@ -97,15 +99,32 @@
   </main>
 </div>
 
+<div class="modal-overlay" id="modalDeleteCard">
+  <div class="modal-box" style="max-width:440px;">
+    <div class="modal-title" style="color:#ff8a8a;">🗑 Supprimer cette carte ?</div>
+    <p style="font-size:.85rem;color:var(--text-muted);line-height:1.6;">
+      La carte de <strong id="delCardName" style="color:var(--text);"></strong> ainsi que <strong>tout son historique</strong>
+      (transactions et journal d'audit) seront définitivement effacés. Cette action est irréversible.
+    </p>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="document.getElementById('modalDeleteCard').classList.remove('open')">Annuler</button>
+      <button class="btn btn-crimson" id="btnConfirmDelete">Supprimer définitivement</button>
+    </div>
+  </div>
+</div>
+
 <script type="module">
 import { initFx } from "./assets/js/fx.js";
+import { initUiFx, animateCounters } from "./assets/js/uiFx.js";
 import { toast } from "./assets/js/toast.js";
 import { requireRole, renderStaffBadge, roleLabel } from "./assets/js/session.js";
-import { listAllCards, isExpired } from "./assets/js/cards.js";
+import { listAllCards, isExpired, deleteCard, casinoProfitTokens } from "./assets/js/cards.js";
+import { tokenDisplayHTML, formatYen, tokensToYen } from "./assets/js/economy.js";
 import { logAction } from "./assets/js/logs.js";
 import { db, collection, query, orderBy, limit, onSnapshot, addDoc, getDocs } from "./assets/js/firebase-init.js";
 
 initFx();
+initUiFx();
 const staff = requireRole(["admin"]);
 if(staff){ renderStaffBadge(); }
 
@@ -125,7 +144,7 @@ onSnapshot(logQ, (snap) => {
     const date = l.createdAt?.toDate ? l.createdAt.toDate().toLocaleString('fr-FR') : '—';
     return `<div class="log-entry">
       <span class="log-action">${l.action}</span>
-      <span class="log-detail"><strong>${l.playerName||l.staffName||'—'}</strong> ${l.detail?('— '+l.detail):''} ${l.amount!=null?(' ('+(l.amount>0?'+':'')+l.amount+'¥)'):''}</span>
+      <span class="log-detail"><strong>${l.playerName||l.staffName||'—'}</strong> ${l.detail?('— '+l.detail):''} ${l.amount!=null?(' ('+(l.amount>0?'+':'')+l.amount+' 🪙 · '+formatYen(tokensToYen(l.amount))+')'):''}</span>
       <span class="log-date">${date}</span>
     </div>`;
   }).join('')}</div>`;
@@ -160,13 +179,17 @@ document.getElementById("btnAddStaff").addEventListener("click", async () => {
 });
 
 /* ── Cartes ── */
+let cardsById = {};
 async function loadCards(){
   const cards = await listAllCards();
+  cardsById = Object.fromEntries(cards.map(c => [c.id, c]));
   const active = cards.filter(c => !isExpired(c));
   const expired = cards.filter(c => isExpired(c));
+  const circulation = active.reduce((s,c)=>s+(c.balance||0),0);
   document.getElementById("statCards").textContent = active.length;
   document.getElementById("statExpired").textContent = expired.length;
-  document.getElementById("statCirculation").textContent = active.reduce((s,c)=>s+(c.balance||0),0);
+  document.getElementById("statCirculation").textContent = circulation.toLocaleString('fr-FR');
+  document.getElementById("statCirculationYen").textContent = `≈ ${formatYen(tokensToYen(circulation))}`;
 
   const tbody = document.querySelector("#cardsTable tbody");
   if(!cards.length){ tbody.innerHTML = `<tr><td class="empty-state"><p>Aucune carte.</p></td></tr>`; return; }
@@ -175,15 +198,44 @@ async function loadCards(){
     return `<tr>
       <td><strong>${c.playerName}</strong></td>
       <td style="color:var(--text-muted)">${c.steamId}</td>
-      <td class="yen-tag" style="color:var(--gold2)">${c.balance}</td>
+      <td>${tokenDisplayHTML(c.balance, {small:true})}</td>
       <td><span class="badge ${exp?'badge-expired':'badge-active'}">${exp?'Expirée':'Active'}</span></td>
+      <td class="td-actions"><button class="btn btn-ghost btn-sm" style="border-color:rgba(201,40,47,.3);color:#ff8a8a;" onclick="window.__confirmDeleteCard('${c.id}')">🗑</button></td>
     </tr>`;
   }).join('');
 }
 
+async function loadProfit(){
+  const profitTokens = await casinoProfitTokens();
+  document.getElementById("statProfit").textContent = profitTokens.toLocaleString('fr-FR');
+  document.getElementById("statProfitYen").textContent = `≈ ${formatYen(tokensToYen(profitTokens))}`;
+}
+
+let pendingDeleteCard = null;
+window.__confirmDeleteCard = (cardId) => {
+  const card = cardsById[cardId];
+  if(!card) return;
+  pendingDeleteCard = card;
+  document.getElementById("delCardName").textContent = `${card.playerName} (${card.steamId})`;
+  document.getElementById("modalDeleteCard").classList.add("open");
+};
+document.getElementById("btnConfirmDelete").addEventListener("click", async () => {
+  if(!pendingDeleteCard) return;
+  try{
+    await deleteCard(pendingDeleteCard.id, pendingDeleteCard.steamId, staff);
+    toast("Carte et historique supprimés.", "success");
+    document.getElementById("modalDeleteCard").classList.remove("open");
+    pendingDeleteCard = null;
+    loadCards(); loadProfit();
+  }catch(e){
+    toast(e.message, "error");
+  }
+});
+
 loadStaff();
 loadCards();
-setInterval(loadCards, 30000);
+loadProfit();
+setInterval(() => { loadCards(); loadProfit(); }, 30000);
 </script>
 </body>
 </html>

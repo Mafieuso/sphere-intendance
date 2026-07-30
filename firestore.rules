@@ -9,12 +9,16 @@ rules_version = '2';
 // clé Firebase publique, ces règles ne peuvent PAS garantir
 // « seul un Hôte peut créditer des tokens » de façon
 // infalsifiable : elles valident la FORME des données et
-// empêchent les abus grossiers (solde négatif, suppression de
-// l'historique...), mais un utilisateur techniquement motivé
-// pourrait contourner l'interface. C'est le même modèle de
-// sécurité que les autres sites de l'Ordre déjà en ligne.
-// Pour une vraie séparation des rôles côté serveur, il faudrait
-// migrer vers Firebase Authentication + Cloud Functions.
+// empêchent les abus grossiers (solde négatif...), mais un
+// utilisateur techniquement motivé pourrait contourner
+// l'interface. C'est le même modèle de sécurité que les autres
+// sites de l'Ordre déjà en ligne. Pour une vraie séparation des
+// rôles côté serveur, il faudrait migrer vers Firebase
+// Authentication + Cloud Functions.
+//
+// La suppression de cartes/transactions/logs est autorisée car
+// l'Hôte doit pouvoir effacer une carte joueur et tout son passage
+// dans le journal d'audit sur demande.
 // ─────────────────────────────────────────────────────────────
 
 service cloud.firestore {
@@ -26,41 +30,48 @@ service cloud.firestore {
       allow read: if true;
       allow create, update: if request.resource.data.keys().hasAll(['name','role','pin','active'])
         && request.resource.data.role in ['hote','croupier','admin'];
-      allow delete: if false;
+      allow delete: if true;
     }
 
     // Cartes joueur : lecture publique (consultation de solde),
-    // écriture limitée à un solde >= 0.
+    // écriture limitée à un solde >= 0, suppression autorisée (Hôte).
     match /playerCards/{cardId} {
       allow read: if true;
       allow create: if request.resource.data.balance == 0
         && request.resource.data.keys().hasAll(['steamId','playerName','balance','status']);
       allow update: if request.resource.data.balance is number && request.resource.data.balance >= 0;
-      allow delete: if false;
+      allow delete: if true;
     }
 
-    // Transactions : registre financier immuable (aucune modification/suppression).
+    // Transactions : registre financier, supprimable uniquement dans le cadre
+    // de l'effacement complet d'une carte (déclenché côté Hôte).
     match /transactions/{txId} {
       allow read: if true;
       allow create: if request.resource.data.keys().hasAll(['cardId','type','amount']);
-      allow update, delete: if false;
+      allow update: if false;
+      allow delete: if true;
     }
 
-    // Logs d'audit : immuables également.
+    // Logs d'audit : supprimables uniquement dans le cadre de l'effacement
+    // complet d'une carte.
     match /logs/{logId} {
       allow read: if true;
       allow create: if request.resource.data.keys().hasAll(['action']);
-      allow update, delete: if false;
+      allow update: if false;
+      allow delete: if true;
     }
 
-    // Tables de jeu live (roulette / blackjack) : état partagé en temps réel.
+    // Tables de jeu live (roulette / blackjack / crash) et leurs sous-collections
+    // (mises, sièges) : état partagé en temps réel.
     match /tables/{tableId} {
       allow read: if true;
       allow write: if true;
     }
-
-    // Manches du Crash Game.
-    match /crashRounds/{roundId} {
+    match /tables/{tableId}/bets/{betId} {
+      allow read: if true;
+      allow write: if true;
+    }
+    match /tables/{tableId}/seats/{seatId} {
       allow read: if true;
       allow write: if true;
     }

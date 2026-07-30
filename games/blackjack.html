@@ -33,6 +33,17 @@
 .join-row,.action-row{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;align-items:flex-end;}
 .join-row .form-group{flex:1;min-width:120px;margin-bottom:0;}
 .croupier-controls{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;}
+.balance-pill{transition:.2s;}
+.balance-pill.pulse{animation:pillPulse .5s ease;}
+@keyframes pillPulse{0%{transform:scale(1)}40%{transform:scale(1.08)}100%{transform:scale(1)}}
+.card{animation:cardDeal .35s cubic-bezier(.2,.9,.3,1.2) both;}
+@keyframes cardDeal{from{opacity:0;transform:translateY(-20px) rotate(-8deg) scale(.7)}to{opacity:1;transform:translateY(0) rotate(0) scale(1)}}
+.seat.win{border-color:#5ee0af;box-shadow:0 0 24px rgba(94,224,175,.2);animation:seatWinGlow 1.2s ease-in-out infinite;}
+@keyframes seatWinGlow{0%,100%{box-shadow:0 0 16px rgba(94,224,175,.15)}50%{box-shadow:0 0 30px rgba(94,224,175,.35)}}
+.seat.bust,.seat.lose{opacity:.6;}
+.quick-bets{display:flex;gap:6px;margin-top:6px;}
+.quick-bet-btn{flex:1;padding:5px;font-size:.56rem;font-family:'Cinzel',serif;letter-spacing:1px;border-radius:5px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);color:var(--text-muted);transition:.15s;}
+.quick-bet-btn:hover{border-color:rgba(201,162,39,.4);color:var(--gold);}
 </style>
 </head>
 <body>
@@ -43,7 +54,7 @@
 <div class="wrap">
   <div class="gtop">
     <a href="#" id="backLink" class="btn btn-ghost btn-sm">← Retour</a>
-    <div class="balance-pill yen-tag" id="balancePill" style="display:none">—</div>
+    <div class="balance-pill" id="balancePill" style="display:none">—</div>
   </div>
   <div class="page-title" style="font-size:1.15rem;padding-bottom:8px;">🃏 Blackjack</div>
   <div class="page-sub" id="statusLabel">Table blackjack-1</div>
@@ -67,7 +78,15 @@
 
     <div id="playerPanel" style="display:none">
       <div class="join-row" id="joinRow">
-        <div class="form-group"><label class="form-label">Mise (¥)</label><input class="form-input" id="betAmount" type="number" min="1" value="40"></div>
+        <div class="form-group">
+          <label class="form-label">Mise (jetons — 1 🪙 = 50 000 ¥)</label>
+          <input class="form-input" id="betAmount" type="number" min="1" step="1" value="1">
+          <div class="quick-bets">
+            <button type="button" class="quick-bet-btn" data-v="1">1</button>
+            <button type="button" class="quick-bet-btn" data-v="5">5</button>
+            <button type="button" class="quick-bet-btn" data-v="10">10</button>
+          </div>
+        </div>
         <button class="btn btn-solid" id="btnJoin">Rejoindre la Table</button>
       </div>
       <div class="action-row" id="actionRow" style="display:none">
@@ -80,15 +99,18 @@
 
 <script type="module">
 import { initFx } from "../assets/js/fx.js";
+import { initUiFx, burst } from "../assets/js/uiFx.js";
 import { toast } from "../assets/js/toast.js";
 import { getSession } from "../assets/js/session.js";
 import { getPlayerSession } from "../assets/js/playerSession.js";
 import { getCard, adjustBalance, isExpired } from "../assets/js/cards.js";
+import { tokenDisplayHTML, formatYen, tokensToYen } from "../assets/js/economy.js";
 import {
   db, doc, getDoc, setDoc, collection, addDoc, updateDoc, query, where, getDocs, onSnapshot, serverTimestamp
 } from "../assets/js/firebase-init.js";
 
 initFx();
+initUiFx();
 const TABLE_ID = "blackjack-1";
 const tableRef = doc(db, "tables", TABLE_ID);
 const seatsCol = collection(db, "tables", TABLE_ID, "seats");
@@ -101,11 +123,16 @@ document.getElementById("backLink").href = isCroupier ? "../croupier.html" : "..
 if(!isCroupier) document.getElementById("backLink").textContent = "← Ma Carte";
 if(isCroupier) document.getElementById("croupierPanel").style.display = "block";
 if(player){ document.getElementById("playerPanel").style.display = "block"; document.getElementById("balancePill").style.display="inline-block"; refreshBalance(); }
+document.querySelectorAll(".quick-bet-btn").forEach(b => b.addEventListener("click", () => {
+  document.getElementById("betAmount").value = b.dataset.v;
+}));
 
 async function refreshBalance(){
   if(!player) return;
   const card = await getCard(player.id);
-  document.getElementById("balancePill").textContent = "¥ " + (card?.balance ?? 0);
+  document.getElementById("balancePill").innerHTML = tokenDisplayHTML(card?.balance ?? 0, {small:true});
+  const pill = document.getElementById("balancePill");
+  pill.classList.remove("pulse"); void pill.offsetWidth; pill.classList.add("pulse");
 }
 
 const RANKS = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
@@ -197,7 +224,7 @@ document.getElementById("btnJoin")?.addEventListener("click", async () => {
   const existing = await getDocs(query(seatsCol, where("roundId","==",t.roundId), where("cardId","==",player.id)));
   if(!existing.empty) return toast("Tu es déjà à la table pour cette manche.", "warn");
 
-  await adjustBalance({ cardId: player.id, amount: -amount, type: "mise", gameId: "blackjack", note: `Mise ¥${amount} au Blackjack` });
+  await adjustBalance({ cardId: player.id, amount: -amount, type: "mise", gameId: "blackjack", note: `Mise ${amount} jeton(s) au Blackjack` });
   await addDoc(seatsCol, { roundId: t.roundId, cardId: player.id, steamId: player.steamId, playerName: player.playerName, bet: amount, hand: [], status: "waiting" });
   toast("Place à la table réservée.", "success");
   refreshBalance();
@@ -243,6 +270,7 @@ onSnapshot(tableRef, (snap) => {
 });
 onSnapshot(seatsCol, () => renderSeats());
 
+const celebratedSeats = new Set();
 async function renderSeats(){
   if(!currentTable) return;
   const snap = await getDocs(query(seatsCol, where("roundId","==",currentTable.roundId)));
@@ -253,13 +281,25 @@ async function renderSeats(){
     const total = handTotal(s.hand || []);
     const mine = player && s.cardId === player.id;
     const statusText = { waiting:'En attente', playing:'À toi de jouer', bust:'Bust !', stand:'Reste', win:'Gagné !', lose:'Perdu', push:'Égalité' }[s.status] || s.status;
-    return `<div class="seat ${mine?'me':''}">
-      <div class="seat-name">${s.playerName} — ¥${s.bet}</div>
+    return `<div class="seat ${mine?'me':''} ${s.status==='win'?'win':''}">
+      <div class="seat-name">${s.playerName} — ${tokenDisplayHTML(s.bet, {small:true})}</div>
       <div class="hand">${(s.hand||[]).map(c => { const red=c.suit==='♥'||c.suit==='♦'; return `<div class="card ${red?'red':''}">${c.rank}<span style="font-size:.7rem">${c.suit}</span></div>`; }).join('')}</div>
       ${s.hand && s.hand.length ? `<div class="hand-total">Total : ${total}</div>` : ''}
       <div class="seat-status ${s.status}">${statusText}</div>
     </div>`;
   }).join('');
+
+  snap.docs.forEach(d => {
+    const s = d.data();
+    const mine = player && s.cardId === player.id;
+    if(mine && s.status === "win" && !celebratedSeats.has(d.id)){
+      celebratedSeats.add(d.id);
+      toast(`🎉 Blackjack gagné !`, "success");
+      const seatEl = [...grid.querySelectorAll(".seat.me")][0];
+      if(seatEl){ const r = seatEl.getBoundingClientRect(); burst(r.left + r.width/2, r.top + r.height/2); }
+      refreshBalance();
+    }
+  });
 }
 </script>
 </body>

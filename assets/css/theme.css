@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════
    SPHÈRE DE L'INTENDANCE — THÈME PARTAGÉ
-   Casino démoniaque féodal japonais — noir / cramoisi / or
+   Casino clandestin féodal japonais — noir / cramoisi / or
    ═══════════════════════════════════════════════════════════ */
 
 :root{
@@ -144,7 +144,12 @@ a{color:inherit;text-decoration:none;}
   color:var(--gold2);font-family:'Cinzel',serif;font-weight:900;font-size:.55rem;box-shadow:0 3px 10px rgba(0,0,0,.6),0 0 14px rgba(201,162,39,.2);
   flex-shrink:0;}
 .token-amount{font-family:'Cinzel',serif;font-weight:900;color:var(--gold2);text-shadow:0 0 14px rgba(240,208,96,.4);}
-.yen-tag::before{content:'¥ ';opacity:.7;}
+
+/* ── Affichage Jetons / Yens ── */
+.token-display{display:inline-flex;align-items:baseline;gap:8px;flex-wrap:wrap;}
+.chip-icon{font-size:.8em;filter:drop-shadow(0 0 4px rgba(201,162,39,.5));}
+.token-num{font-family:'Cinzel',serif;font-weight:900;color:var(--gold2);text-shadow:0 0 14px rgba(240,208,96,.4);}
+.yen-equiv{font-size:.6em;color:var(--text-muted);letter-spacing:.5px;font-family:'Noto Sans JP',sans-serif;font-weight:400;}
 
 /* ── TABLE FEUTRE (jeux) ── */
 .felt-table{background:radial-gradient(ellipse at 50% 30%,#123024,#081712 75%);border:8px solid #1a0d05;
@@ -211,3 +216,73 @@ a{color:inherit;text-decoration:none;}
 .gate-card-icon{font-size:2rem;}
 .gate-card-name{font-family:'Cinzel',serif;letter-spacing:2px;font-size:.85rem;color:var(--text);}
 .gate-card-desc{font-size:.66rem;color:var(--text-muted);line-height:1.5;}
+
+/* ══════════════════════════════════════════════════════
+   ═══════════  PACK VISUEL "WOW" — SITE ENTIER  ═══════════
+   ══════════════════════════════════════════════════════ */
+
+/* Titres de page : soulignement lumineux + micro-respiration */
+.page-title{position:relative;}
+.page-title::before{content:'';position:absolute;left:0;bottom:0;width:64px;height:2px;
+  background:linear-gradient(to right,currentColor,transparent);box-shadow:0 0 12px currentColor;
+  animation:wowUnderline 3.2s ease-in-out infinite;}
+@keyframes wowUnderline{0%,100%{width:64px;opacity:.75}50%{width:84px;opacity:1}}
+
+/* Icônes flottantes génériques */
+.stat-icon,.gate-card-icon,.ti,.gi,.chip-icon{display:inline-block;animation:wowFloat 3.4s ease-in-out infinite;}
+@keyframes wowFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+
+/* Tilt 3D + reflet holographique (appliqué via JS uiFx.js à .panel,.stat-card,.gate-card,.table-card,.game-tile) */
+.panel,.stat-card,.gate-card,.table-card,.game-tile,.card-visual,.card-result{will-change:transform;position:relative;}
+.wow-sheen{position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at var(--mx,50%) var(--my,50%),rgba(255,255,255,.12),transparent 45%);
+  opacity:0;transition:opacity .25s;z-index:2;border-radius:inherit;}
+.wow-tilt-active>.wow-sheen{opacity:1;}
+
+/* Compteurs de stats : glow pulsé */
+@keyframes wowStatGlow{0%,100%{filter:brightness(1)}50%{filter:brightness(1.12)}}
+.stat-val{animation:wowStatGlow 4.5s ease-in-out infinite;}
+
+/* Entrée orchestrée de l'interface */
+#sidebar{animation:wowSlideIn .6s cubic-bezier(.16,1,.3,1) both;}
+#topbar{animation:wowFadeDown .6s .12s cubic-bezier(.16,1,.3,1) both;}
+@keyframes wowSlideIn{from{transform:translateX(-100%);opacity:0}to{transform:translateX(0);opacity:1}}
+@keyframes wowFadeDown{from{transform:translateY(-14px);opacity:0}to{transform:translateY(0);opacity:1}}
+
+/* Entrée échelonnée des éléments de contenu */
+@keyframes wowRise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+.wow-in{animation:wowRise .5s cubic-bezier(.16,1,.3,1) both;}
+
+/* Badges : reflet balayant */
+.badge{position:relative;overflow:hidden;}
+.badge::after{content:'';position:absolute;top:0;left:-75%;width:45%;height:100%;
+  background:linear-gradient(115deg,transparent,rgba(255,255,255,.4),transparent);transform:skewX(-20deg);
+  animation:wowBadgeSweep 3.6s ease-in-out infinite;}
+@keyframes wowBadgeSweep{0%{left:-75%}35%{left:135%}100%{left:135%}}
+
+/* Panneaux : liseré animé au hover */
+.panel,.card-result,.card-visual{transition:box-shadow .3s,transform .2s;}
+.panel:hover{box-shadow:0 14px 40px rgba(0,0,0,.6);}
+
+/* Curseur : traînée de particules dorées (activée par uiFx.js) */
+.wow-trail{position:fixed;top:0;left:0;width:4px;height:4px;border-radius:50%;pointer-events:none;z-index:999998;
+  background:radial-gradient(circle,rgba(245,205,120,.9),rgba(201,162,39,0) 70%);will-change:transform,opacity;}
+
+/* Lignes de tableau / logs : glisse au survol */
+.log-entry,.staff-item,.wl-item,.bet-chip-row,.cards-table tr{transition:transform .2s ease,box-shadow .2s ease;}
+.log-entry:hover{transform:translateX(4px);box-shadow:0 6px 20px rgba(0,0,0,.4);}
+
+/* Toast : léger rebond */
+.toast{animation:wowToastIn .35s cubic-bezier(.34,1.56,.64,1);}
+@keyframes wowToastIn{from{transform:translateX(110%) scale(.9)}to{transform:translateX(0) scale(1)}}
+
+/* Boutons : halo pulsé sur les CTA principaux */
+.btn-solid{animation:wowCtaGlow 3s ease-in-out infinite;}
+@keyframes wowCtaGlow{0%,100%{box-shadow:0 0 0 rgba(201,162,39,0)}50%{box-shadow:0 0 22px rgba(201,162,39,.25)}}
+
+/* Confettis / éclats de victoire (générés par uiFx.js) */
+.wow-burst{position:fixed;border-radius:50%;pointer-events:none;z-index:99998;animation:wowBurstFly 900ms cubic-bezier(.2,.7,.3,1) forwards;}
+@keyframes wowBurstFly{to{transform:translate(var(--dx),var(--dy)) rotate(var(--rot,180deg)) scale(0);opacity:0;}}
+
+@media(prefers-reduced-motion:reduce){
+  .page-title::before,.stat-icon,.gate-card-icon,.ti,.gi,.chip-icon,.stat-val,#sidebar,#topbar,.badge::after,.toast,.btn-solid{animation:none!important;}
+}

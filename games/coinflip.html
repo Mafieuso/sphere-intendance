@@ -9,22 +9,39 @@
 <style>
 .wrap{max-width:520px;margin:0 auto;padding:30px 20px 80px;position:relative;z-index:2;}
 .gtop{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;gap:10px;flex-wrap:wrap;}
-.balance-pill{font-family:'Cinzel',serif;font-size:.85rem;color:var(--gold2);border:1px solid var(--border-h);padding:8px 16px;border-radius:20px;background:rgba(201,162,39,.05);}
-.coin-stage{display:flex;align-items:center;justify-content:center;height:220px;perspective:800px;}
+.balance-pill{font-family:'Cinzel',serif;font-size:.8rem;color:var(--gold2);border:1px solid var(--border-h);padding:8px 16px;border-radius:20px;background:rgba(201,162,39,.05);transition:.2s;}
+.balance-pill.pulse{animation:pillPulse .5s ease;}
+@keyframes pillPulse{0%{transform:scale(1)}40%{transform:scale(1.08)}100%{transform:scale(1)}}
+.coin-stage{display:flex;align-items:center;justify-content:center;height:240px;perspective:800px;position:relative;overflow:hidden;}
+.coin-glow{position:absolute;width:180px;height:180px;border-radius:50%;background:radial-gradient(circle,rgba(201,162,39,.25),transparent 70%);
+  opacity:0;transition:opacity .3s;}
+.coin-glow.on{opacity:1;animation:glowPulse 1.2s ease-in-out infinite;}
 .coin{width:150px;height:150px;border-radius:50%;position:relative;transform-style:preserve-3d;transition:transform 1.8s cubic-bezier(.2,.8,.3,1);
   background:radial-gradient(circle at 35% 30%,#f5d870,#c9a227 55%,#8a6a10 100%);box-shadow:0 10px 40px rgba(0,0,0,.6),0 0 40px rgba(201,162,39,.2);
-  display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-size:2.4rem;color:#3a2a05;font-weight:900;}
+  display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-size:2.4rem;color:#3a2a05;font-weight:900;z-index:1;}
 .coin.flipping{animation:coinSpin 1.8s cubic-bezier(.2,.8,.3,1);}
+.coin.win-spin{animation:coinWinSpin 1.1s ease-in-out infinite;}
 @keyframes coinSpin{from{transform:rotateY(0)}to{transform:rotateY(1800deg)}}
+@keyframes coinWinSpin{0%,100%{transform:rotateY(0) scale(1)}50%{transform:rotateY(180deg) scale(1.06)}}
+.coin-shadow{position:absolute;bottom:14px;width:100px;height:14px;border-radius:50%;background:rgba(0,0,0,.5);filter:blur(6px);
+  animation:shadowPulse 1.8s ease-in-out infinite;}
+@keyframes shadowPulse{0%,100%{transform:scaleX(1);opacity:.5}50%{transform:scaleX(.6);opacity:.25}}
 .choice-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:20px 0;}
 .choice-btn{padding:16px;border-radius:10px;border:2px solid rgba(255,255,255,.08);background:var(--panel);
-  font-family:'Cinzel',serif;letter-spacing:2px;color:var(--text-muted);transition:.2s;text-transform:uppercase;font-size:.72rem;}
-.choice-btn.selected{border-color:var(--gold);color:var(--gold);background:rgba(201,162,39,.08);box-shadow:0 0 20px rgba(201,162,39,.15);}
+  font-family:'Cinzel',serif;letter-spacing:2px;color:var(--text-muted);transition:.2s;text-transform:uppercase;font-size:.72rem;position:relative;overflow:hidden;}
+.choice-btn.selected{border-color:var(--gold);color:var(--gold);background:rgba(201,162,39,.08);box-shadow:0 0 20px rgba(201,162,39,.15);transform:translateY(-2px);}
 .bet-row{display:flex;gap:10px;margin-top:16px;}
 .bet-row .form-group{flex:1;margin-bottom:0;}
-.result-banner{text-align:center;margin-top:18px;padding:14px;border-radius:8px;font-family:'Cinzel',serif;letter-spacing:2px;display:none;}
-.result-banner.win{display:block;background:rgba(31,174,124,.12);border:1px solid rgba(31,174,124,.35);color:#5ee0af;}
-.result-banner.loss{display:block;background:rgba(201,40,47,.12);border:1px solid rgba(201,40,47,.35);color:#ff8a8a;}
+.result-banner{text-align:center;margin-top:18px;padding:14px;border-radius:8px;font-family:'Cinzel',serif;letter-spacing:2px;display:none;
+  transform:scale(.9);opacity:0;transition:transform .3s cubic-bezier(.34,1.56,.64,1),opacity .3s;}
+.result-banner.show{display:block;transform:scale(1);opacity:1;}
+.result-banner.win{background:rgba(31,174,124,.12);border:1px solid rgba(31,174,124,.35);color:#5ee0af;box-shadow:0 0 30px rgba(31,174,124,.15);}
+.result-banner.loss{background:rgba(201,40,47,.12);border:1px solid rgba(201,40,47,.35);color:#ff8a8a;}
+.shake{animation:shakeFx .4s;}
+@keyframes shakeFx{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-5px)}80%{transform:translateX(5px)}}
+.quick-bets{display:flex;gap:8px;margin-top:8px;}
+.quick-bet-btn{flex:1;padding:6px;font-size:.6rem;font-family:'Cinzel',serif;letter-spacing:1px;border-radius:6px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);color:var(--text-muted);transition:.15s;}
+.quick-bet-btn:hover{border-color:rgba(201,162,39,.4);color:var(--gold);}
 </style>
 </head>
 <body>
@@ -35,35 +52,53 @@
 <div class="wrap">
   <div class="gtop">
     <a href="../carte.html" class="btn btn-ghost btn-sm">← Ma Carte</a>
-    <div class="balance-pill yen-tag" id="balancePill">—</div>
+    <div class="balance-pill" id="balancePill">—</div>
   </div>
   <div class="page-title" style="font-size:1.15rem;padding-bottom:8px;">Pile ou Face</div>
-  <div class="page-sub">Mise à 1.9× — Choisis ton camp</div>
+  <div class="page-sub">Gain net 0.9× la mise — Choisis ton camp</div>
 
   <div class="panel">
-    <div class="coin-stage"><div class="coin" id="coin">¥</div></div>
+    <div class="coin-stage">
+      <div class="coin-glow" id="coinGlow"></div>
+      <div class="coin" id="coin">🪙</div>
+      <div class="coin-shadow"></div>
+    </div>
     <div class="choice-row">
       <button class="choice-btn" data-choice="pile" id="btnPile">面 Pile</button>
       <button class="choice-btn" data-choice="face" id="btnFace">金 Face</button>
     </div>
     <div class="bet-row">
-      <div class="form-group"><label class="form-label">Mise (¥)</label><input class="form-input" id="betAmount" type="number" min="1" value="50"></div>
+      <div class="form-group">
+        <label class="form-label">Mise (jetons — 1 🪙 = 50 000 ¥)</label>
+        <input class="form-input" id="betAmount" type="number" min="1" step="1" value="1">
+        <div class="quick-bets">
+          <button type="button" class="quick-bet-btn" data-v="1">1</button>
+          <button type="button" class="quick-bet-btn" data-v="5">5</button>
+          <button type="button" class="quick-bet-btn" data-v="10">10</button>
+          <button type="button" class="quick-bet-btn" data-v="max">Max</button>
+        </div>
+        <div class="form-hint" id="betYenPreview">≈ 50 000 ¥</div>
+      </div>
     </div>
-    <button class="btn btn-solid btn-block btn-lg" id="btnPlay" style="margin-top:16px;">Lancer</button>
+    <button class="btn btn-solid btn-block btn-lg" id="btnPlay" style="margin-top:16px;">Lancer la pièce</button>
     <div class="result-banner" id="resultBanner"></div>
   </div>
 </div>
 
 <script type="module">
 import { initFx } from "../assets/js/fx.js";
+import { initUiFx, burst } from "../assets/js/uiFx.js";
 import { toast } from "../assets/js/toast.js";
 import { requirePlayerCard } from "../assets/js/playerSession.js";
 import { getCard, adjustBalance, isExpired } from "../assets/js/cards.js";
+import { tokenDisplayHTML, formatYen, tokensToYen } from "../assets/js/economy.js";
 
 initFx();
+initUiFx();
 const session = requirePlayerCard();
 let choice = null;
 let playing = false;
+let myBalance = 0;
 
 document.querySelectorAll(".choice-btn").forEach(b => b.addEventListener("click", () => {
   document.querySelectorAll(".choice-btn").forEach(x=>x.classList.remove("selected"));
@@ -71,26 +106,42 @@ document.querySelectorAll(".choice-btn").forEach(b => b.addEventListener("click"
   choice = b.dataset.choice;
 }));
 
+const betInput = document.getElementById("betAmount");
+function updateYenPreview(){
+  const t = parseInt(betInput.value, 10) || 0;
+  document.getElementById("betYenPreview").textContent = `≈ ${formatYen(tokensToYen(t))}`;
+}
+betInput.addEventListener("input", updateYenPreview);
+document.querySelectorAll(".quick-bet-btn").forEach(b => b.addEventListener("click", () => {
+  betInput.value = b.dataset.v === "max" ? Math.max(1, myBalance) : b.dataset.v;
+  updateYenPreview();
+}));
+
 async function refreshBalance(){
   const card = await getCard(session.id);
-  document.getElementById("balancePill").textContent = "¥ " + (card?.balance ?? 0);
+  myBalance = card?.balance ?? 0;
+  document.getElementById("balancePill").innerHTML = tokenDisplayHTML(myBalance, {small:true});
   return card;
 }
 refreshBalance();
+updateYenPreview();
 
-document.getElementById("btnPlay").addEventListener("click", async () => {
+document.getElementById("btnPlay").addEventListener("click", async (evt) => {
   if(playing) return;
-  const bet = parseInt(document.getElementById("betAmount").value, 10);
+  const bet = parseInt(betInput.value, 10);
   if(!choice) return toast("Choisis Pile ou Face.", "warn");
   if(!bet || bet <= 0) return toast("Mise invalide.", "warn");
   const card = await getCard(session.id);
   if(isExpired(card)) return toast("Carte expirée — repasse à la caisse.", "error");
-  if(card.balance < bet) return toast("Solde insuffisant.", "warn");
+  if(card.balance < bet) return toast("Solde de jetons insuffisant.", "warn");
 
   playing = true;
-  document.getElementById("resultBanner").className = "result-banner";
+  const banner = document.getElementById("resultBanner");
+  banner.className = "result-banner";
   const coin = document.getElementById("coin");
-  coin.classList.remove("flipping"); void coin.offsetWidth; coin.classList.add("flipping");
+  const glow = document.getElementById("coinGlow");
+  glow.classList.add("on");
+  coin.classList.remove("flipping","win-spin"); void coin.offsetWidth; coin.classList.add("flipping");
 
   const outcome = Math.random() < 0.5 ? "pile" : "face";
   const win = outcome === choice;
@@ -98,15 +149,29 @@ document.getElementById("btnPlay").addEventListener("click", async () => {
 
   setTimeout(async () => {
     coin.textContent = outcome === "pile" ? "面" : "金";
+    glow.classList.remove("on");
     try{
       const balanceAfter = await adjustBalance({
         cardId: session.id, amount: net, type: win ? "gain" : "perte",
-        gameId: "coinflip", note: `Mise ¥${bet} sur ${choice}, résultat ${outcome}`
+        gameId: "coinflip", note: `Mise ${bet} jeton(s) sur ${choice}, résultat ${outcome}`
       });
-      const banner = document.getElementById("resultBanner");
       banner.classList.add(win ? "win" : "loss");
-      banner.textContent = win ? `✓ Gagné ! +¥${net} — Solde : ¥${balanceAfter}` : `✗ Perdu — ¥${bet} — Solde : ¥${balanceAfter}`;
-      document.getElementById("balancePill").textContent = "¥ " + balanceAfter;
+      requestAnimationFrame(() => banner.classList.add("show"));
+      banner.innerHTML = win
+        ? `✓ Gagné ! +${net} 🪙 (${formatYen(tokensToYen(net))}) — Solde : ${balanceAfter} 🪙`
+        : `✗ Perdu — ${bet} 🪙 (${formatYen(tokensToYen(bet))}) — Solde : ${balanceAfter} 🪙`;
+      myBalance = balanceAfter;
+      document.getElementById("balancePill").innerHTML = tokenDisplayHTML(balanceAfter, {small:true});
+      document.getElementById("balancePill").classList.remove("pulse"); void document.getElementById("balancePill").offsetWidth;
+      document.getElementById("balancePill").classList.add("pulse");
+      if(win){
+        coin.classList.add("win-spin");
+        const rect = coin.getBoundingClientRect();
+        burst(rect.left + rect.width/2, rect.top + rect.height/2);
+      }else{
+        document.querySelector(".panel").classList.add("shake");
+        setTimeout(() => document.querySelector(".panel").classList.remove("shake"), 400);
+      }
     }catch(e){ toast(e.message, "error"); }
     playing = false;
   }, 1800);

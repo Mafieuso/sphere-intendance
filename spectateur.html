@@ -29,7 +29,7 @@
   <div class="tables-grid">
     <a class="table-card" href="games/roulette.html" style="--gc:#b3121a"><div class="ti">🎡</div><div class="tn">Roulette</div></a>
     <a class="table-card" href="games/blackjack.html" style="--gc:#c9a227"><div class="ti">🃏</div><div class="tn">Blackjack</div></a>
-    <a class="table-card" href="games/crash.html" style="--gc:#1fae7c"><div class="ti">📈</div><div class="tn">Ascension Démoniaque</div></a>
+    <a class="table-card" href="games/crash.html" style="--gc:#1fae7c"><div class="ti">📈</div><div class="tn">Ascension Fulgurante</div></a>
   </div>
 
   <div class="panel">
@@ -40,8 +40,11 @@
 
 <script type="module">
 import { initFx } from "./assets/js/fx.js";
+import { initUiFx, staggerIn } from "./assets/js/uiFx.js";
 import { db, collection, query, orderBy, limit, onSnapshot } from "./assets/js/firebase-init.js";
 initFx();
+initUiFx();
+staggerIn('.table-card');
 
 const q = query(collection(db, "logs"), orderBy("createdAt", "desc"), limit(25));
 onSnapshot(q, (snap) => {
