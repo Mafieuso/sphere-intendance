@@ -98,11 +98,13 @@ a{color:inherit;text-decoration:none;}
 
 /* ── BOUTONS ── */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:11px 20px;border-radius:6px;
-  font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:2px;text-transform:uppercase;transition:.2s;border:none;
+  font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:2px;text-transform:uppercase;transition:transform .15s ease,box-shadow .2s,filter .2s,background .2s,border-color .2s;border:none;
   position:relative;overflow:hidden;white-space:nowrap;}
 .btn::before{content:'';position:absolute;top:0;left:-60%;width:35%;height:100%;
   background:linear-gradient(115deg,transparent,rgba(255,255,255,.18),transparent);transform:skewX(-20deg);transition:left .6s ease;pointer-events:none;}
 .btn:hover::before{left:130%;}
+.btn:not(:disabled):hover{transform:translateY(-2px);}
+.btn:not(:disabled):active{transform:translateY(0) scale(.95);transition:transform .08s ease;}
 .btn-gold{background:transparent;border:1px solid var(--gold);color:var(--gold);}
 .btn-gold:hover{background:rgba(201,162,39,.1);}
 .btn-crimson{background:transparent;border:1px solid var(--crimson2);color:#ff8a8a;}
@@ -231,8 +233,9 @@ a{color:inherit;text-decoration:none;}
   animation:wowUnderline 3.2s ease-in-out infinite;}
 @keyframes wowUnderline{0%,100%{width:64px;opacity:.75}50%{width:84px;opacity:1}}
 
-/* Icônes flottantes génériques */
-.stat-icon,.gate-card-icon,.ti,.gi,.chip-icon{display:inline-block;animation:wowFloat 3.4s ease-in-out infinite;}
+/* Icônes flottantes génériques — pas sur .gate-card-icon/.ti/.gi : ce sont des
+   icônes de menu/navigation, elles ne doivent bouger qu'au survol, jamais au repos. */
+.stat-icon,.chip-icon{display:inline-block;animation:wowFloat 3.4s ease-in-out infinite;}
 @keyframes wowFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
 
 /* Tilt 3D + reflet holographique (appliqué via JS uiFx.js à .panel,.stat-card,.card-visual,.card-result) */
@@ -292,8 +295,13 @@ a{color:inherit;text-decoration:none;}
 .wow-burst{position:fixed;border-radius:50%;pointer-events:none;z-index:99998;animation:wowBurstFly 900ms cubic-bezier(.2,.7,.3,1) forwards;}
 @keyframes wowBurstFly{to{transform:translate(var(--dx),var(--dy)) rotate(var(--rot,180deg)) scale(0);opacity:0;}}
 
+/* Anneau lumineux qui accompagne les confettis sur une victoire */
+.wow-ring{position:fixed;width:10px;height:10px;border-radius:50%;border:2px solid;pointer-events:none;z-index:99997;
+  transform:translate(-50%,-50%);animation:wowRingPulse .7s ease-out forwards;}
+@keyframes wowRingPulse{from{width:10px;height:10px;opacity:.9;}to{width:180px;height:180px;opacity:0;}}
+
 @media(prefers-reduced-motion:reduce){
-  .page-title::before,.stat-icon,.gate-card-icon,.ti,.gi,.chip-icon,.stat-val,#sidebar,#topbar,.badge::after,.toast,.btn-solid,.sidebar-ornament{animation:none!important;}
+  .page-title::before,.stat-icon,.chip-icon,.stat-val,#sidebar,#topbar,.badge::after,.toast,.btn-solid,.sidebar-ornament{animation:none!important;}
 }
 
 /* ══════════════════════════════════════════════════════

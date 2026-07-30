@@ -116,7 +116,7 @@
 
 <script type="module">
 import { initFx } from "../assets/js/fx.js";
-import { initUiFx, burst } from "../assets/js/uiFx.js";
+import { initUiFx, burst, animateTokenPill } from "../assets/js/uiFx.js";
 import { toast } from "../assets/js/toast.js";
 import { requirePlayerCard } from "../assets/js/playerSession.js";
 import { getCard, adjustBalance, isExpired, isSuspended } from "../assets/js/cards.js";
@@ -194,10 +194,8 @@ document.getElementById("btnPlay").addEventListener("click", async (evt) => {
       banner.innerHTML = win
         ? `✓ Gagné ! +${net} 🪙 (${formatYen(tokensToYen(net))}) — Solde : ${balanceAfter} 🪙`
         : `✗ Perdu — ${bet} 🪙 (${formatYen(tokensToYen(bet))}) — Solde : ${balanceAfter} 🪙`;
+      animateTokenPill(document.getElementById("balancePill"), myBalance, balanceAfter, {small:true});
       myBalance = balanceAfter;
-      document.getElementById("balancePill").innerHTML = tokenDisplayHTML(balanceAfter, {small:true});
-      document.getElementById("balancePill").classList.remove("pulse"); void document.getElementById("balancePill").offsetWidth;
-      document.getElementById("balancePill").classList.add("pulse");
 
       const kanjiEl = document.getElementById("coinResultKanji");
       const wordEl = document.getElementById("coinResultWord");

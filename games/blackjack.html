@@ -114,7 +114,7 @@
 
 <script type="module">
 import { initFx } from "../assets/js/fx.js";
-import { initUiFx, burst } from "../assets/js/uiFx.js";
+import { initUiFx, burst, animateTokenPill } from "../assets/js/uiFx.js";
 import { toast } from "../assets/js/toast.js";
 import { getSession } from "../assets/js/session.js";
 import { getPlayerSession } from "../assets/js/playerSession.js";
@@ -142,12 +142,13 @@ document.querySelectorAll(".quick-bet-btn").forEach(b => b.addEventListener("cli
   document.getElementById("betAmount").value = b.dataset.v;
 }));
 
+let myBalance = 0;
 async function refreshBalance(){
   if(!player) return;
   const card = await getCard(player.id);
-  document.getElementById("balancePill").innerHTML = tokenDisplayHTML(card?.balance ?? 0, {small:true});
-  const pill = document.getElementById("balancePill");
-  pill.classList.remove("pulse"); void pill.offsetWidth; pill.classList.add("pulse");
+  const newBalance = card?.balance ?? 0;
+  animateTokenPill(document.getElementById("balancePill"), myBalance, newBalance, {small:true});
+  myBalance = newBalance;
 }
 
 const RANKS = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];

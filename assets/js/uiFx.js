@@ -1,6 +1,7 @@
 /* Effets d'interface partagés : tilt 3D, compteurs animés, confettis,
    entrée échelonnée, traînée de curseur. Purement cosmétique — n'affecte
    jamais la logique métier. */
+import { tokenDisplayHTML } from "./economy.js";
 
 /* Les cartes de menu/navigation (gate-card, table-card, game-tile) sont exclues :
    le tilt qui suit la souris donnait l'impression que les menus "bougeaient" en
@@ -57,8 +58,43 @@ export function staggerIn(selector, root = document){
   });
 }
 
+/* Anime le texte d'un élément d'une valeur numérique à une autre (compteur qui défile). */
+export function countUp(el, from, to, { duration = 700 } = {}){
+  if(!el) return;
+  const startVal = Number(from) || 0, delta = (Number(to) || 0) - startVal;
+  if(delta === 0){ el.textContent = startVal.toLocaleString('fr-FR'); return; }
+  const start = performance.now();
+  function frame(now){
+    const t = Math.min(1, (now - start) / duration);
+    const eased = 1 - Math.pow(1 - t, 3);
+    el.textContent = Math.round(startVal + delta * eased).toLocaleString('fr-FR');
+    if(t < 1) requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
+/* Met à jour une pastille de solde (balance-pill) avec un défilement du chiffre
+   et un léger pulse, plutôt qu'un saut instantané — utilisé sur chaque gain/perte. */
+export function animateTokenPill(el, fromTokens, toTokens, opts = {}){
+  if(!el) return;
+  el.innerHTML = tokenDisplayHTML(toTokens, opts);
+  const numEl = el.querySelector('.token-num');
+  if(numEl) countUp(numEl, fromTokens, toTokens);
+  el.classList.remove('pulse'); void el.offsetWidth; el.classList.add('pulse');
+}
+
+/* Anneau lumineux qui s'étend et s'efface, pour accompagner une victoire. */
+export function ringPulse(x, y, color = '#f5d870'){
+  const r = document.createElement('div');
+  r.className = 'wow-ring';
+  r.style.cssText = `left:${x}px;top:${y}px;border-color:${color};`;
+  document.body.appendChild(r);
+  setTimeout(() => r.remove(), 750);
+}
+
 /* Explosion de particules dorées/vertes à un point précis de l'écran (victoire, création, etc.) */
 export function burst(x, y, { count = 22, colors = ['#f5d870','#c9a227','#5ee0af'] } = {}){
+  ringPulse(x, y, colors[0]);
   for(let i = 0; i < count; i++){
     const s = document.createElement('div');
     s.className = 'wow-burst';

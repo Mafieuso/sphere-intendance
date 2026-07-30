@@ -132,7 +132,7 @@
 
 <script type="module">
 import { initFx } from "../assets/js/fx.js";
-import { initUiFx, burst } from "../assets/js/uiFx.js";
+import { initUiFx, burst, animateTokenPill } from "../assets/js/uiFx.js";
 import { toast } from "../assets/js/toast.js";
 import { getSession, roleLabel } from "../assets/js/session.js";
 import { getPlayerSession } from "../assets/js/playerSession.js";
@@ -168,10 +168,9 @@ let myBalance = 0;
 async function refreshBalance(){
   if(!player) return;
   const card = await getCard(player.id);
-  myBalance = card?.balance ?? 0;
-  document.getElementById("balancePill").innerHTML = tokenDisplayHTML(myBalance, {small:true});
-  const pill = document.getElementById("balancePill");
-  pill.classList.remove("pulse"); void pill.offsetWidth; pill.classList.add("pulse");
+  const newBalance = card?.balance ?? 0;
+  animateTokenPill(document.getElementById("balancePill"), myBalance, newBalance, {small:true});
+  myBalance = newBalance;
 }
 document.querySelectorAll(".quick-bet-btn").forEach(b => b.addEventListener("click", () => {
   document.getElementById("betAmount").value = b.dataset.v;
