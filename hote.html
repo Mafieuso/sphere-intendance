@@ -120,7 +120,7 @@ import { initFx } from "./assets/js/fx.js";
 import { initUiFx, burst } from "./assets/js/uiFx.js";
 import { toast } from "./assets/js/toast.js";
 import { requireRole, renderStaffBadge, getSession } from "./assets/js/session.js";
-import { findCardBySteamId, createCard, adjustBalance, deleteCard, isExpired, msUntilExpiration } from "./assets/js/cards.js";
+import { findCardBySteamId, createCard, adjustBalance, deleteCard, isExpired, msUntilExpiration, isSuspended, setCardSuspended } from "./assets/js/cards.js";
 import { tokenDisplayHTML, formatYen, tokensToYen, yenToTokens } from "./assets/js/economy.js";
 import { db, collection, query, orderBy, limit, onSnapshot } from "./assets/js/firebase-init.js";
 
@@ -171,11 +171,14 @@ function renderCardResult(card){
     return;
   }
   const expired = isExpired(card);
+  const suspended = isSuspended(card);
+  const statusLabel = suspended ? "Suspendue" : (expired ? "Expirée" : "Active");
+  const statusClass = suspended ? "badge-suspended" : (expired ? "badge-expired" : "badge-active");
   box.innerHTML = `
     <div class="card-result wow-in">
       <div>
         <div class="cr-name">${card.playerName}</div>
-        <div class="cr-steam">${card.steamId} · <span class="badge ${expired?'badge-expired':'badge-active'}">${expired?'Expirée':'Active'}</span></div>
+        <div class="cr-steam">${card.steamId} · <span class="badge ${statusClass}">${statusLabel}</span></div>
       </div>
       <div class="cr-balance">${tokenDisplayHTML(card.balance)}</div>
     </div>
@@ -196,7 +199,10 @@ function renderCardResult(card){
       <button class="btn btn-jade" id="btnDeposit">+ Déposer</button>
       <button class="btn btn-crimson" id="btnWithdraw">− Retirer</button>
     </div>
-    <div style="margin-top:14px;text-align:right;">
+    <div style="margin-top:14px;display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;">
+      <button class="btn btn-ghost btn-sm" id="btnToggleSuspend" style="${suspended ? 'border-color:rgba(94,224,175,.35);color:#5ee0af;' : 'border-color:rgba(255,183,77,.35);color:#ffb74d;'}">
+        ${suspended ? '▶ Réactiver la carte' : '⏸ Suspendre la carte'}
+      </button>
       <button class="btn btn-ghost btn-sm" id="btnDeleteCard" style="border-color:rgba(201,40,47,.3);color:#ff8a8a;">🗑 Supprimer la carte</button>
     </div>
   `;
@@ -206,7 +212,19 @@ function renderCardResult(card){
   });
   document.getElementById("btnDeposit").addEventListener("click", (e) => doTx(card.id, 1, e));
   document.getElementById("btnWithdraw").addEventListener("click", (e) => doTx(card.id, -1, e));
+  document.getElementById("btnToggleSuspend").addEventListener("click", () => toggleSuspend(card, !suspended));
   document.getElementById("btnDeleteCard").addEventListener("click", () => confirmDeleteCard(card));
+}
+
+async function toggleSuspend(card, suspend){
+  try{
+    await setCardSuspended(card.id, suspend, staff);
+    toast(suspend ? `Carte de ${card.playerName} suspendue.` : `Carte de ${card.playerName} réactivée.`, "success");
+    currentCard = await findCardBySteamId(card.steamId);
+    renderCardResult(currentCard);
+  }catch(e){
+    toast(e.message, "error");
+  }
 }
 
 async function doTx(cardId, sign, evt){
@@ -260,7 +278,10 @@ function renderCardList(){
   if(!filtered.length){ el.innerHTML = `<div class="empty-state"><p>Aucune carte.</p></div>`; return; }
   el.innerHTML = filtered.map(c => {
     const exp = isExpired(c);
+    const susp = isSuspended(c);
     const active = currentCard && currentCard.id === c.id;
+    const label = susp ? "Suspendue" : (exp ? "Expirée" : "Active");
+    const cls = susp ? "badge-suspended" : (exp ? "badge-expired" : "badge-active");
     return `<div class="card-list-row ${active?'active':''}" data-id="${c.id}">
       <div>
         <div class="card-list-name">${c.playerName}</div>
@@ -268,7 +289,7 @@ function renderCardList(){
       </div>
       <div style="display:flex;align-items:center;gap:10px;">
         ${tokenDisplayHTML(c.balance, {small:true})}
-        <span class="badge ${exp?'badge-expired':'badge-active'}">${exp?'Expirée':'Active'}</span>
+        <span class="badge ${cls}">${label}</span>
       </div>
     </div>`;
   }).join('');

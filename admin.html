@@ -113,12 +113,26 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="modalResetPin">
+  <div class="modal-box" style="max-width:440px;">
+    <div class="modal-title" style="color:#ffb74d;">🔸 Réinitialiser ce code ?</div>
+    <p style="font-size:.85rem;color:var(--text-muted);line-height:1.6;">
+      <strong id="resetStaffName" style="color:var(--text);"></strong> recevra un nouveau code temporaire
+      et devra en configurer un nouveau à sa prochaine connexion.
+    </p>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="document.getElementById('modalResetPin').classList.remove('open')">Annuler</button>
+      <button class="btn btn-gold" id="btnConfirmResetPin">Réinitialiser</button>
+    </div>
+  </div>
+</div>
+
 <script type="module">
 import { initFx } from "./assets/js/fx.js";
 import { initUiFx, animateCounters } from "./assets/js/uiFx.js";
 import { toast } from "./assets/js/toast.js";
-import { requireRole, renderStaffBadge, roleLabel } from "./assets/js/session.js";
-import { listAllCards, isExpired, deleteCard, casinoProfitTokens } from "./assets/js/cards.js";
+import { requireRole, renderStaffBadge, roleLabel, resetStaffPin } from "./assets/js/session.js";
+import { listAllCards, isExpired, deleteCard, casinoProfitTokens, isSuspended, setCardSuspended } from "./assets/js/cards.js";
 import { tokenDisplayHTML, formatYen, tokensToYen } from "./assets/js/economy.js";
 import { logAction } from "./assets/js/logs.js";
 import { db, collection, query, orderBy, limit, onSnapshot, addDoc, getDocs } from "./assets/js/firebase-init.js";
@@ -151,16 +165,30 @@ onSnapshot(logQ, (snap) => {
 });
 
 /* ── Staff ── */
+let staffById = {};
+function pinStatusHTML(s){
+  if(s.pinConfigured === false) return `<span style="color:#ffb74d;">🔸 Code temporaire — pas encore configuré</span>`;
+  if(s.pinSetAt?.toDate) return `<span style="color:#5ee0af;">✓ Code configuré le ${s.pinSetAt.toDate().toLocaleString('fr-FR')}</span>`;
+  return `<span style="color:#5ee0af;">✓ Code configuré</span>`;
+}
 async function loadStaff(){
   const snap = await getDocs(collection(db, "staff"));
   const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  staffById = Object.fromEntries(list.map(s => [s.id, s]));
   document.getElementById("statStaff").textContent = list.filter(s=>s.active).length;
   const el = document.getElementById("staffList");
   if(!list.length){ el.innerHTML = `<div class="empty-state"><p>Aucun membre du staff.</p></div>`; return; }
   el.innerHTML = list.map(s => `
     <div class="staff-item">
-      <div><div class="staff-name">${s.name}</div><div class="staff-meta">${s.steamId||'—'}</div></div>
-      <span class="badge badge-${s.role}">${roleLabel(s.role)}</span>
+      <div>
+        <div class="staff-name">${s.name}</div>
+        <div class="staff-meta">${s.steamId||'—'}</div>
+        <div class="staff-meta" style="margin-top:3px;">${pinStatusHTML(s)}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
+        <span class="badge badge-${s.role}">${roleLabel(s.role)}</span>
+        <button class="btn btn-ghost btn-sm" style="font-size:.56rem;" onclick="window.__confirmResetPin('${s.id}')">Réinitialiser le code</button>
+      </div>
     </div>`).join('');
 }
 
@@ -170,12 +198,36 @@ document.getElementById("btnAddStaff").addEventListener("click", async () => {
   const role = document.getElementById("stRole").value;
   if(!name || !steamId) return toast("Nom et Steam ID requis.", "warn");
   const pin = generatePin();
-  await addDoc(collection(db, "staff"), { name, steamId, role, pin, active: true, createdAt: new Date() });
+  await addDoc(collection(db, "staff"), { name, steamId, role, pin, active: true, pinConfigured: false, pinSetAt: null, createdAt: new Date() });
   await logAction({ action: "STAFF_AJOUTE", detail: `${name} ajouté comme ${roleLabel(role)}`, staffId: staff.id, staffName: staff.name });
   toast("Membre du staff ajouté.", "success");
-  document.getElementById("staffPinReveal").innerHTML = `<div class="pin-reveal"><div class="form-label">PIN de connexion</div><div class="pv">${pin}</div></div>`;
+  document.getElementById("staffPinReveal").innerHTML = `<div class="pin-reveal"><div class="form-label">Code temporaire — à transmettre à ${name}</div><div class="pv">${pin}</div></div>`;
   document.getElementById("stName").value = ""; document.getElementById("stSteamId").value = "";
   loadStaff();
+});
+
+let pendingResetStaff = null;
+window.__confirmResetPin = (staffId) => {
+  const member = staffById[staffId];
+  if(!member) return;
+  pendingResetStaff = member;
+  document.getElementById("resetStaffName").textContent = `${member.name} (${roleLabel(member.role)})`;
+  document.getElementById("modalResetPin").classList.add("open");
+};
+document.getElementById("btnConfirmResetPin").addEventListener("click", async () => {
+  if(!pendingResetStaff) return;
+  const tempPin = generatePin();
+  try{
+    await resetStaffPin(pendingResetStaff.id, tempPin);
+    await logAction({ action: "STAFF_CODE_RESET", detail: `Code réinitialisé pour ${pendingResetStaff.name}`, staffId: staff.id, staffName: staff.name });
+    document.getElementById("modalResetPin").classList.remove("open");
+    document.getElementById("staffPinReveal").innerHTML = `<div class="pin-reveal"><div class="form-label">Nouveau code temporaire — à transmettre à ${pendingResetStaff.name}</div><div class="pv">${tempPin}</div></div>`;
+    toast("Code réinitialisé.", "success");
+    pendingResetStaff = null;
+    loadStaff();
+  }catch(e){
+    toast(e.message, "error");
+  }
 });
 
 /* ── Cartes ── */
@@ -195,12 +247,18 @@ async function loadCards(){
   if(!cards.length){ tbody.innerHTML = `<tr><td class="empty-state"><p>Aucune carte.</p></td></tr>`; return; }
   tbody.innerHTML = cards.map(c => {
     const exp = isExpired(c);
+    const susp = isSuspended(c);
+    const label = susp ? "Suspendue" : (exp ? "Expirée" : "Active");
+    const cls = susp ? "badge-suspended" : (exp ? "badge-expired" : "badge-active");
     return `<tr>
       <td><strong>${c.playerName}</strong></td>
       <td style="color:var(--text-muted)">${c.steamId}</td>
       <td>${tokenDisplayHTML(c.balance, {small:true})}</td>
-      <td><span class="badge ${exp?'badge-expired':'badge-active'}">${exp?'Expirée':'Active'}</span></td>
-      <td class="td-actions"><button class="btn btn-ghost btn-sm" style="border-color:rgba(201,40,47,.3);color:#ff8a8a;" onclick="window.__confirmDeleteCard('${c.id}')">🗑</button></td>
+      <td><span class="badge ${cls}">${label}</span></td>
+      <td class="td-actions">
+        <button class="btn btn-ghost btn-sm" style="${susp ? 'border-color:rgba(94,224,175,.35);color:#5ee0af;' : 'border-color:rgba(255,183,77,.35);color:#ffb74d;'}" onclick="window.__toggleSuspendCard('${c.id}')">${susp ? '▶' : '⏸'}</button>
+        <button class="btn btn-ghost btn-sm" style="border-color:rgba(201,40,47,.3);color:#ff8a8a;" onclick="window.__confirmDeleteCard('${c.id}')">🗑</button>
+      </td>
     </tr>`;
   }).join('');
 }
@@ -210,6 +268,19 @@ async function loadProfit(){
   document.getElementById("statProfit").textContent = profitTokens.toLocaleString('fr-FR');
   document.getElementById("statProfitYen").textContent = `≈ ${formatYen(tokensToYen(profitTokens))}`;
 }
+
+window.__toggleSuspendCard = async (cardId) => {
+  const card = cardsById[cardId];
+  if(!card) return;
+  const suspend = !isSuspended(card);
+  try{
+    await setCardSuspended(cardId, suspend, staff);
+    toast(suspend ? `Carte de ${card.playerName} suspendue.` : `Carte de ${card.playerName} réactivée.`, "success");
+    loadCards();
+  }catch(e){
+    toast(e.message, "error");
+  }
+};
 
 let pendingDeleteCard = null;
 window.__confirmDeleteCard = (cardId) => {

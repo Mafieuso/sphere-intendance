@@ -118,7 +118,7 @@ import { initUiFx, burst } from "../assets/js/uiFx.js";
 import { toast } from "../assets/js/toast.js";
 import { getSession } from "../assets/js/session.js";
 import { getPlayerSession } from "../assets/js/playerSession.js";
-import { getCard, adjustBalance, isExpired } from "../assets/js/cards.js";
+import { getCard, adjustBalance, isExpired, isSuspended } from "../assets/js/cards.js";
 import { tokenDisplayHTML, formatYen, tokensToYen } from "../assets/js/economy.js";
 import {
   db, doc, getDoc, setDoc, collection, addDoc, updateDoc, query, where, getDocs, onSnapshot, serverTimestamp
@@ -245,6 +245,7 @@ document.getElementById("btnJoin")?.addEventListener("click", async () => {
     if(!t || t.status !== "betting") return toast("Les mises ne sont pas ouvertes.", "warn");
     const card = await getCard(player.id);
     if(isExpired(card)) return toast("Carte expirée.", "error");
+    if(isSuspended(card)) return toast("Carte suspendue — contacte l'Hôte.", "error");
     if(card.balance < amount) return toast("Solde insuffisant.", "warn");
 
     const existing = await getDocs(query(seatsCol, where("roundId","==",t.roundId), where("cardId","==",player.id)));

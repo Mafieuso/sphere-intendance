@@ -13,7 +13,7 @@ export function initEmbers(){
       vy: -(Math.random()*.5+.25), vx:(Math.random()-.5)*.4,
       life:0, maxLife: Math.random()*500+400, hue: Math.random()<.7?18:45, alpha: Math.random()*.5+.3 };
   }
-  for(let i=0;i<40;i++){ const e=spawn(); e.y=Math.random()*h; embers.push(e); }
+  for(let i=0;i<55;i++){ const e=spawn(); e.y=Math.random()*h; embers.push(e); }
 
   let last = performance.now();
   function frame(now){
@@ -35,7 +35,7 @@ export function initEmbers(){
 export function spawnParticles(){
   const container = document.querySelector('.particles');
   if(!container) return;
-  for(let i=0;i<32;i++){
+  for(let i=0;i<45;i++){
     const p = document.createElement('div');
     const size = Math.random()*3+1, x = Math.random()*100, delay = Math.random()*20, dur = Math.random()*18+12;
     const opacity = Math.random()*.4+.08;

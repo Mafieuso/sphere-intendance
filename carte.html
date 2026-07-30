@@ -47,7 +47,7 @@ import { initFx } from "./assets/js/fx.js";
 import { initUiFx, staggerIn } from "./assets/js/uiFx.js";
 import { toast } from "./assets/js/toast.js";
 import { unlockCard, getPlayerSession, clearPlayerSession } from "./assets/js/playerSession.js";
-import { getCard, cardTransactions, isExpired, msUntilExpiration } from "./assets/js/cards.js";
+import { getCard, cardTransactions, isExpired, msUntilExpiration, isSuspended } from "./assets/js/cards.js";
 import { tokenDisplayHTML, formatYen, tokensToYen } from "./assets/js/economy.js";
 
 initFx();
@@ -89,18 +89,22 @@ async function renderCard(){
   unlockView.style.display = "none";
   cardView.style.display = "block";
   const expired = isExpired(card);
+  const suspended = isSuspended(card);
   const hoursLeft = expired ? 0 : Math.floor(msUntilExpiration(card) / 3600000);
+  const locked = expired || suspended;
+  const statusLabel = suspended ? "Carte Suspendue" : (expired ? "Carte Expirée" : "Active");
+  const statusClass = suspended ? "badge-suspended" : (expired ? "badge-expired" : "badge-active");
 
   cardView.innerHTML = `
     <div class="card-visual">
       <div class="cv-top">
         <div class="cv-org">Sphère de l'Intendance</div>
-        <div class="cv-status badge ${expired?'badge-expired':'badge-active'}">${expired?'Carte Expirée':'Active'}</div>
+        <div class="cv-status badge ${statusClass}">${statusLabel}</div>
       </div>
       <div class="cv-name">${card.playerName}</div>
       <div class="cv-steam">${card.steamId}</div>
       <div class="cv-balance-row"><div class="cv-balance">${tokenDisplayHTML(card.balance)}</div></div>
-      <div class="cv-expire">${expired ? "Aucune activité depuis plus de 24h — repasse à la caisse pour la réactiver." : `Expire dans ${hoursLeft}h sans activité.`}</div>
+      <div class="cv-expire">${suspended ? "Carte suspendue par l'Hôte — tes jetons sont gelés en attendant la réactivation." : (expired ? "Aucune activité depuis plus de 24h — repasse à la caisse pour la réactiver." : `Expire dans ${hoursLeft}h sans activité.`)}</div>
     </div>
 
     <div class="page-header" style="margin-top:32px;">
@@ -108,11 +112,16 @@ async function renderCard(){
       <button class="btn btn-ghost btn-sm" id="btnLock">Verrouiller la carte</button>
     </div>
     <div class="games-grid">
-      <a class="game-tile" href="games/coinflip.html" style="--gc:#c9a227"><div class="gi">🪙</div><div class="gn">Pile ou Face</div></a>
-      <a class="game-tile" href="games/dice.html" style="--gc:#1fae7c"><div class="gi">🎲</div><div class="gn">Lancer de Dés</div></a>
-      <a class="game-tile" href="games/roulette.html" style="--gc:#b3121a"><div class="gi">🎡</div><div class="gn">Roulette</div></a>
-      <a class="game-tile" href="games/blackjack.html" style="--gc:#c9a227"><div class="gi">🃏</div><div class="gn">Blackjack</div></a>
-      <a class="game-tile" href="games/crash.html" style="--gc:#b3121a"><div class="gi">📈</div><div class="gn">Ascension Fulgurante</div></a>
+      ${[
+        { href:"games/coinflip.html", gc:"#c9a227", icon:"🪙", name:"Pile ou Face" },
+        { href:"games/dice.html", gc:"#1fae7c", icon:"🎲", name:"Lancer de Dés" },
+        { href:"games/roulette.html", gc:"#b3121a", icon:"🎡", name:"Roulette" },
+        { href:"games/blackjack.html", gc:"#c9a227", icon:"🃏", name:"Blackjack" },
+        { href:"games/crash.html", gc:"#b3121a", icon:"📈", name:"Ascension Fulgurante" },
+      ].map(g => locked
+        ? `<div class="game-tile" style="--gc:${g.gc};opacity:.45;cursor:not-allowed;" title="Carte ${suspended?'suspendue':'expirée'}"><div class="gi">${g.icon}</div><div class="gn">${g.name}</div></div>`
+        : `<a class="game-tile" href="${g.href}" style="--gc:${g.gc}"><div class="gi">${g.icon}</div><div class="gn">${g.name}</div></a>`
+      ).join('')}
     </div>
 
     <div class="panel" style="margin-top:28px;">

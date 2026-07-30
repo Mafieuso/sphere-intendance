@@ -40,6 +40,22 @@
       </div>
       <button type="submit" class="btn btn-solid btn-block btn-lg" id="loginBtn">Entrer</button>
     </form>
+
+    <form id="pinSetupForm" style="display:none;">
+      <p style="font-size:.7rem;color:var(--text-muted);line-height:1.6;margin-bottom:16px;">
+        Ton code est temporaire. Choisis ton propre code secret avant de continuer.
+      </p>
+      <div class="form-group">
+        <label class="form-label">Nouveau code (min. 4 caractères)</label>
+        <input class="form-input pin-input" id="newPinInput" type="password" autocomplete="off" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Confirme le code</label>
+        <input class="form-input pin-input" id="confirmPinInput" type="password" autocomplete="off" required>
+      </div>
+      <button type="submit" class="btn btn-solid btn-block btn-lg" id="pinSetupBtn">Valider mon code</button>
+    </form>
+
     <a class="login-back" href="index.html">← Retour à l'accueil</a>
   </div>
 </div>
@@ -48,7 +64,7 @@
 import { initFx } from "./assets/js/fx.js";
 import { initUiFx } from "./assets/js/uiFx.js";
 import { toast } from "./assets/js/toast.js";
-import { loginWithPin, roleLabel, getSession } from "./assets/js/session.js";
+import { loginWithPin, roleLabel, getSession, needsPinSetup, setPermanentPin } from "./assets/js/session.js";
 
 initFx();
 initUiFx({ tilt: false });
@@ -68,6 +84,8 @@ function defaultPageFor(role){
   return "index.html";
 }
 
+let pendingStaff = null;
+
 document.getElementById("loginForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const btn = document.getElementById("loginBtn");
@@ -81,12 +99,37 @@ document.getElementById("loginForm").addEventListener("submit", async (e) => {
       btn.disabled = false; btn.textContent = "Entrer";
       return;
     }
+    if(needsPinSetup(staff)){
+      pendingStaff = staff;
+      document.getElementById("loginForm").style.display = "none";
+      document.getElementById("pinSetupForm").style.display = "block";
+      toast("Code temporaire — configure ton propre code.", "info");
+      return;
+    }
     toast(`Bienvenue, ${staff.name} (${roleLabel(staff.role)})`, "success");
     setTimeout(() => { location.href = next || defaultPageFor(staff.role); }, 600);
   }catch(err){
     console.error(err);
     toast("Erreur de connexion à la base.", "error");
     btn.disabled = false; btn.textContent = "Entrer";
+  }
+});
+
+document.getElementById("pinSetupForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if(!pendingStaff) return;
+  const btn = document.getElementById("pinSetupBtn");
+  const newPin = document.getElementById("newPinInput").value;
+  const confirmPin = document.getElementById("confirmPinInput").value;
+  if(newPin !== confirmPin) return toast("Les deux codes ne correspondent pas.", "warn");
+  btn.disabled = true; btn.textContent = "Configuration…";
+  try{
+    await setPermanentPin(pendingStaff.id, newPin);
+    toast(`Code configuré — bienvenue, ${pendingStaff.name} !`, "success");
+    setTimeout(() => { location.href = next || defaultPageFor(pendingStaff.role); }, 600);
+  }catch(err){
+    toast(err.message || "Erreur lors de la configuration.", "error");
+    btn.disabled = false; btn.textContent = "Valider mon code";
   }
 });
 </script>

@@ -1,7 +1,7 @@
 /* Session staff (Hôte / Croupier / Admin) — stockée en localStorage.
    Authentification simple par code secret (PIN), pas de mot de passe email.
    Cohérent avec le système de liste blanche déjà utilisé sur les autres sites de l'Ordre. */
-import { db, collection, query, where, getDocs } from "./firebase-init.js";
+import { db, collection, doc, updateDoc, query, where, getDocs, serverTimestamp } from "./firebase-init.js";
 
 const KEY = "sphereIntendanceStaff";
 
@@ -24,6 +24,31 @@ export async function loginWithPin(pin){
   const staff = { id: d.id, ...d.data() };
   setSession(staff);
   return staff;
+}
+
+/* Un membre du staff créé avec un code temporaire doit le remplacer par son
+   propre code au premier login (pinConfigured explicitement à false — les
+   comptes déjà existants sans ce champ sont considérés configurés, pour ne
+   pas bloquer le staff déjà actif). */
+export function needsPinSetup(staffMember){
+  return staffMember?.pinConfigured === false;
+}
+
+/* Remplace le code temporaire par le code personnel choisi par le membre. */
+export async function setPermanentPin(staffId, newPin){
+  const trimmed = (newPin || "").trim();
+  if(trimmed.length < 4) throw new Error("Le code doit contenir au moins 4 caractères.");
+  await updateDoc(doc(db, "staff", staffId), { pin: trimmed, pinConfigured: true, pinSetAt: serverTimestamp() });
+  const current = getSession();
+  if(current && current.id === staffId){
+    setSession({ ...current, pin: trimmed, pinConfigured: true });
+  }
+}
+
+/* Réinitialisation par l'Admin : génère un nouveau code temporaire, le membre
+   devra en choisir un nouveau à sa prochaine connexion. */
+export async function resetStaffPin(staffId, tempPin){
+  await updateDoc(doc(db, "staff", staffId), { pin: tempPin, pinConfigured: false, pinSetAt: null });
 }
 
 const ROLE_LABELS = { hote: "Hôte", croupier: "Croupier", admin: "Intendance" };

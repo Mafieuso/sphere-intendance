@@ -87,7 +87,6 @@
           <button class="btn btn-jade" id="btnNewRound">Ouvrir les Mises</button>
           <button class="btn btn-crimson" id="btnCloseSpin">Fermer les Mises & Lancer</button>
         </div>
-        <div class="bets-list" id="croupierBetsList"></div>
       </div>
 
       <div id="playerPanel" style="display:none">
@@ -109,6 +108,11 @@
           <button class="btn btn-solid" id="btnPlaceBet">Miser</button>
         </div>
         <div class="form-hint" id="myBetHint"></div>
+      </div>
+
+      <div class="live-bets-block">
+        <div class="panel-title" style="font-size:.75rem;margin-top:18px;">🎫 Mises de la manche en cours</div>
+        <div class="bets-list" id="liveBetsList"><div class="empty-state"><p>Aucune mise pour l'instant.</p></div></div>
       </div>
     </div>
 
@@ -132,7 +136,7 @@ import { initUiFx, burst } from "../assets/js/uiFx.js";
 import { toast } from "../assets/js/toast.js";
 import { getSession, roleLabel } from "../assets/js/session.js";
 import { getPlayerSession } from "../assets/js/playerSession.js";
-import { getCard, adjustBalance, isExpired } from "../assets/js/cards.js";
+import { getCard, adjustBalance, isExpired, isSuspended } from "../assets/js/cards.js";
 import { tokenDisplayHTML, formatYen, tokensToYen } from "../assets/js/economy.js";
 import {
   db, doc, getDoc, setDoc, collection, addDoc, query, where, getDocs, onSnapshot, serverTimestamp
@@ -221,6 +225,7 @@ document.getElementById("btnPlaceBet")?.addEventListener("click", async () => {
     if(!table || table.status !== "betting") return toast("Les mises ne sont pas ouvertes.", "warn");
     const card = await getCard(player.id);
     if(isExpired(card)) return toast("Carte expirée.", "error");
+    if(isSuspended(card)) return toast("Carte suspendue — contacte l'Hôte.", "error");
     if(card.balance < amount) return toast("Solde insuffisant.", "warn");
 
     await adjustBalance({ cardId: player.id, amount: -amount, type: "mise", gameId: "roulette", note: `Mise ${amount} jeton(s) sur ${selectedBet.type==='color'?selectedBet.value:('numéro '+selectedBet.value)}` });
@@ -280,11 +285,31 @@ document.getElementById("btnCloseSpin")?.addEventListener("click", async (e) => 
   toast("Roue lancée !", "info");
 });
 
+/* ── Liste publique des mises de la manche en cours ── */
+let currentTable = null;
+let latestBetsSnap = null;
+function betLabel(b){
+  if(b.betType === "color") return b.betValue.charAt(0).toUpperCase() + b.betValue.slice(1);
+  return "N°" + b.betValue;
+}
+function renderLiveBets(){
+  const el = document.getElementById("liveBetsList");
+  if(!el) return;
+  const bets = (currentTable && latestBetsSnap)
+    ? latestBetsSnap.docs.map(d=>d.data()).filter(b => b.roundId === currentTable.roundId)
+    : [];
+  el.innerHTML = bets.length
+    ? bets.map(b => `<div class="bet-chip-row"><span>${b.playerName} — ${betLabel(b)}</span><span>${b.amount} 🪙</span></div>`).join('')
+    : `<div class="empty-state"><p>Aucune mise pour l'instant.</p></div>`;
+}
+
 /* ── Synchronisation live pour tout le monde ── */
 let lastStatus = null;
 onSnapshot(tableRef, (snap) => {
   const table = snap.data();
   if(!table) return;
+  currentTable = table;
+  renderLiveBets();
   const wheel = document.getElementById("wheel");
   const statusLine = document.getElementById("statusLine");
   const resultEl = document.getElementById("resultNumber");
@@ -321,15 +346,11 @@ onSnapshot(tableRef, (snap) => {
   lastStatus = table.status;
 });
 
-/* Liste des mises en direct pour le Croupier */
-if(isCroupier){
-  onSnapshot(collection(db, "tables", TABLE_ID, "bets"), (snap) => {
-    const el = document.getElementById("croupierBetsList");
-    const bets = snap.docs.map(d=>d.data()).sort((a,b)=>(b.roundId-a.roundId)).slice(0,15);
-    if(!bets.length){ el.innerHTML = `<div class="empty-state"><p>Aucune mise.</p></div>`; return; }
-    el.innerHTML = bets.map(b => `<div class="bet-chip-row"><span>${b.playerName} — ${b.betType==='color'?b.betValue:('n°'+b.betValue)}</span><span>${b.amount} 🪙</span></div>`).join('');
-  });
-}
+/* Liste des mises en direct — visible par tous (joueurs, croupier, spectateurs) */
+onSnapshot(collection(db, "tables", TABLE_ID, "bets"), (snap) => {
+  latestBetsSnap = snap;
+  renderLiveBets();
+});
 
 /* Détecte si le joueur a gagné sur cette manche pour célébrer localement */
 async function checkMyWin(table){

@@ -98,7 +98,7 @@ import { initFx } from "../assets/js/fx.js";
 import { initUiFx, burst } from "../assets/js/uiFx.js";
 import { toast } from "../assets/js/toast.js";
 import { requirePlayerCard } from "../assets/js/playerSession.js";
-import { getCard, adjustBalance, isExpired } from "../assets/js/cards.js";
+import { getCard, adjustBalance, isExpired, isSuspended } from "../assets/js/cards.js";
 import { tokenDisplayHTML, formatYen, tokensToYen } from "../assets/js/economy.js";
 
 initFx();
@@ -150,6 +150,7 @@ document.getElementById("btnPlay").addEventListener("click", async () => {
 
   const card = await getCard(session.id);
   if(isExpired(card)){ toast("Carte expirée — repasse à la caisse.", "error"); playing = false; btnPlay.disabled = false; return; }
+  if(isSuspended(card)){ toast("Carte suspendue — contacte l'Hôte.", "error"); playing = false; btnPlay.disabled = false; return; }
   if(card.balance < bet){ toast("Solde de jetons insuffisant.", "warn"); playing = false; btnPlay.disabled = false; return; }
 
   const banner = document.getElementById("resultBanner");

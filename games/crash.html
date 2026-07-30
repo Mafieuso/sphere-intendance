@@ -68,8 +68,8 @@
       <div id="playerPanel" style="display:none">
         <div class="controls-row">
           <div class="form-group">
-            <label class="form-label">Mise (jetons — 1 🪙 = 50 000 ¥)</label>
-            <input class="form-input" id="betAmount" type="number" min="1" step="1" value="1">
+            <label class="form-label">Mise (jetons — max 10 — 1 🪙 = 50 000 ¥)</label>
+            <input class="form-input" id="betAmount" type="number" min="1" max="10" step="1" value="1">
             <div class="quick-bets">
               <button type="button" class="quick-bet-btn" data-v="1">1</button>
               <button type="button" class="quick-bet-btn" data-v="5">5</button>
@@ -91,10 +91,11 @@
         <li>Le multiplicateur grimpe en temps réel dès le décollage.</li>
         <li>Encaisse avant le crash pour remporter <strong>mise × multiplicateur</strong>.</li>
         <li>Multiplicateur plafonné à <strong>×10 maximum</strong>.</li>
+        <li>Mise <strong>maximum 10 jetons</strong> par manche.</li>
         <li>Si tu n'as pas encaissé avant le crash, la mise est perdue.</li>
         <li>Une seule mise par manche et par joueur.</li>
       </ul>
-      <div class="rules-badge">Plafond ×10</div>
+      <div class="rules-badge">Plafond ×10 · Mise max 10</div>
     </div>
   </div>
 </div>
@@ -105,7 +106,7 @@ import { initUiFx, burst } from "../assets/js/uiFx.js";
 import { toast } from "../assets/js/toast.js";
 import { getSession } from "../assets/js/session.js";
 import { getPlayerSession } from "../assets/js/playerSession.js";
-import { getCard, adjustBalance, isExpired } from "../assets/js/cards.js";
+import { getCard, adjustBalance, isExpired, isSuspended } from "../assets/js/cards.js";
 import { tokenDisplayHTML, formatYen, tokensToYen } from "../assets/js/economy.js";
 import {
   db, doc, getDoc, setDoc, collection, addDoc, updateDoc, query, where, getDocs,
@@ -155,10 +156,13 @@ function spawnEmber(stage){
   setTimeout(() => e.remove(), 1400);
 }
 
-/* Point de crash plafonné à ×10 maximum. */
+/* Point de crash plafonné à ×10 maximum.
+   La distribution est volontairement resserrée vers le bas (exposant 1.6 sur le tirage)
+   pour que la fusée monte haut moins souvent — moins de tentation à attendre trop
+   longtemps avant d'encaisser, donc moins de mises perdues sur un excès de confiance. */
 function genCrashPoint(){
-  const r = Math.random();
-  const raw = Math.max(1, Math.floor((0.97 / (1 - r)) * 100) / 100);
+  const r = Math.pow(Math.random(), 1.6);
+  const raw = Math.max(1, Math.floor((0.94 / (1 - r)) * 100) / 100);
   return Math.min(MAX_MULTIPLIER, raw);
 }
 function multiplierAt(elapsedSec){
@@ -204,6 +208,7 @@ document.getElementById("btnJoin")?.addEventListener("click", async () => {
   if(!currentTable || currentTable.status !== "waiting") return toast("Attends que le Croupier ouvre les mises.", "warn");
   const amount = parseInt(document.getElementById("betAmount").value, 10);
   if(!amount || amount <= 0) return toast("Mise invalide.", "warn");
+  if(amount > 10) return toast("Mise maximum : 10 jetons.", "warn");
   if(myBetId) return toast("Tu as déjà misé sur cette manche.", "warn");
   joiningCrash = true;
   const btnJoin = document.getElementById("btnJoin");
@@ -211,6 +216,7 @@ document.getElementById("btnJoin")?.addEventListener("click", async () => {
   try{
     const card = await getCard(player.id);
     if(isExpired(card)) return toast("Carte expirée.", "error");
+    if(isSuspended(card)) return toast("Carte suspendue — contacte l'Hôte.", "error");
     if(card.balance < amount) return toast("Solde insuffisant.", "warn");
 
     await adjustBalance({ cardId: player.id, amount: -amount, type: "mise", gameId: "crash", note: `Mise ${amount} jeton(s) — Ascension Fulgurante` });

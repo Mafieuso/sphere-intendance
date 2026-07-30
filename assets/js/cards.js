@@ -22,6 +22,23 @@ export function msUntilExpiration(card){
   return Math.max(0, EXPIRATION_MS - (Date.now() - last));
 }
 
+/* Une carte suspendue par l'Hôte/l'Admin ne peut plus miser/jouer tant qu'elle
+   n'est pas réactivée — ses jetons restent gelés en attendant. */
+export function isSuspended(card){
+  return card?.status === "suspended";
+}
+
+export async function setCardSuspended(cardId, suspended, staff){
+  const card = await getCard(cardId);
+  if(!card) throw new Error("Carte introuvable.");
+  await updateDoc(doc(db, "playerCards", cardId), { status: suspended ? "suspended" : "active" });
+  await logAction({
+    action: suspended ? "CARTE_SUSPENDUE" : "CARTE_REACTIVEE",
+    detail: suspended ? `Carte suspendue (Steam ID ${card.steamId})` : `Carte réactivée (Steam ID ${card.steamId})`,
+    steamId: card.steamId, playerName: card.playerName, staffId: staff?.id, staffName: staff?.name
+  });
+}
+
 export async function findCardBySteamId(steamId){
   const q = query(collection(db, "playerCards"), where("steamId", "==", steamId.trim()));
   const snap = await getDocs(q);
@@ -74,7 +91,7 @@ export async function adjustBalance({ cardId, amount, type, staff, gameId, note 
     const card = snap.data();
     const newBalance = (card.balance || 0) + amount;
     if(newBalance < 0) throw new Error("Solde insuffisant.");
-    tx.update(cardRef, { balance: newBalance, lastTransactionAt: serverTimestamp(), status: "active" });
+    tx.update(cardRef, { balance: newBalance, lastTransactionAt: serverTimestamp() });
     result = { steamId: card.steamId, playerName: card.playerName, balanceAfter: newBalance };
   });
 

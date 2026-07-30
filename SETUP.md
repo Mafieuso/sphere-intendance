@@ -40,15 +40,17 @@ Ce site est 100% statique (HTML/CSS/JS, aucun build) :
 
 ### `staff/{id}`
 ```
-name, steamId, pin, role: 'hote'|'croupier'|'admin', active: bool, createdAt
+name, steamId, pin, role: 'hote'|'croupier'|'admin', active: bool, createdAt,
+pinConfigured: bool, pinSetAt
 ```
+`pinConfigured: false` = code temporaire, le membre doit en choisir un à sa prochaine connexion (`login.html`). Passe à `true` avec `pinSetAt` renseigné une fois configuré. L'Admin peut réinitialiser (`resetStaffPin` dans `assets/js/session.js`).
 
 ### `playerCards/{id}`
 ```
-steamId, playerName, balance (tokens), status: 'active'|'expired',
+steamId, playerName, balance (tokens), status: 'active'|'suspended',
 createdAt, createdBy, createdByName, lastTransactionAt
 ```
-Une carte est considérée **expirée** si `lastTransactionAt` date de plus de 24h — calculé côté client (`assets/js/cards.js`), pas besoin de fonction planifiée serveur puisqu'il n'y a pas de backend.
+Une carte est considérée **expirée** si `lastTransactionAt` date de plus de 24h — calculé côté client (`assets/js/cards.js`), pas besoin de fonction planifiée serveur puisqu'il n'y a pas de backend. Une carte **suspendue** (`status: 'suspended'`, via l'Hôte ou l'Admin) ne peut plus miser/jouer tant qu'elle n'est pas réactivée, mais reste modifiable en dépôt/retrait à la caisse.
 
 ### `transactions/{id}`
 ```

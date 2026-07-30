@@ -2,7 +2,10 @@
    entrée échelonnée, traînée de curseur. Purement cosmétique — n'affecte
    jamais la logique métier. */
 
-const TILT_SEL = '.panel,.stat-card,.gate-card,.table-card,.game-tile,.card-visual,.card-result';
+/* Les cartes de menu/navigation (gate-card, table-card, game-tile) sont exclues :
+   le tilt qui suit la souris donnait l'impression que les menus "bougeaient" en
+   permanence, ce qui était gênant. Elles gardent un simple hover CSS statique. */
+const TILT_SEL = '.panel,.stat-card,.card-visual,.card-result';
 
 export function initTilt(){
   let current = null;
