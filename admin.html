@@ -264,9 +264,11 @@ async function loadCards(){
 }
 
 async function loadProfit(){
-  const profitTokens = await casinoProfitTokens();
-  document.getElementById("statProfit").textContent = profitTokens.toLocaleString('fr-FR');
-  document.getElementById("statProfitYen").textContent = `≈ ${formatYen(tokensToYen(profitTokens))}`;
+  try{
+    const profitTokens = await casinoProfitTokens();
+    document.getElementById("statProfit").textContent = profitTokens.toLocaleString('fr-FR');
+    document.getElementById("statProfitYen").textContent = `≈ ${formatYen(tokensToYen(profitTokens))}`;
+  }catch(e){ console.error("Profit casino indisponible :", e); }
 }
 
 window.__toggleSuspendCard = async (cardId) => {

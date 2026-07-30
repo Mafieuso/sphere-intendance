@@ -84,7 +84,6 @@ export async function createCard({ steamId, playerName, staff }){
    amount positif = crédit, négatif = débit. Rejette si le solde deviendrait négatif. */
 export async function adjustBalance({ cardId, amount, type, staff, gameId, note }){
   const cardRef = doc(db, "playerCards", cardId);
-  const statsRef = doc(db, "stats", "global");
   let result;
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(cardRef);
@@ -93,12 +92,18 @@ export async function adjustBalance({ cardId, amount, type, staff, gameId, note 
     const newBalance = (card.balance || 0) + amount;
     if(newBalance < 0) throw new Error("Solde insuffisant.");
     tx.update(cardRef, { balance: newBalance, lastTransactionAt: serverTimestamp() });
-    /* Profit du casino tenu à jour en direct (compteur atomique) plutôt que
-       recalculé en relisant tout l'historique des transactions à chaque
-       affichage — ça évite de faire exploser les lectures Firestore. */
-    if(gameId) tx.set(statsRef, { casinoProfitTokens: increment(-amount) }, { merge: true });
     result = { steamId: card.steamId, playerName: card.playerName, balanceAfter: newBalance };
   });
+
+  /* Profit du casino tenu à jour en direct (compteur), en dehors de la
+     transaction ci-dessus et en best-effort : si ça échoue (ex. règle
+     Firestore pas encore déployée), le dépôt/retrait/mise ne doit jamais
+     être bloqué pour autant — c'est juste un compteur d'affichage. */
+  if(gameId){
+    updateDoc(doc(db, "stats", "global"), { casinoProfitTokens: increment(-amount) })
+      .catch(() => setDoc(doc(db, "stats", "global"), { casinoProfitTokens: increment(-amount) }, { merge: true }))
+      .catch((e) => console.error("Profit casino non mis à jour :", e));
+  }
 
   await addDoc(collection(db, "transactions"), {
     cardId, steamId: result.steamId, playerName: result.playerName,
@@ -157,7 +162,9 @@ export async function deleteCard(cardId, steamId, staff){
     await deleteDoc(doc(db, "transactions", d.id));
   }
   if(profitReversal !== 0){
-    await setDoc(doc(db, "stats", "global"), { casinoProfitTokens: increment(profitReversal) }, { merge: true });
+    /* Best-effort : ne doit jamais empêcher la suppression de la carte elle-même. */
+    try{ await setDoc(doc(db, "stats", "global"), { casinoProfitTokens: increment(profitReversal) }, { merge: true }); }
+    catch(e){ console.error("Profit casino non ajusté :", e); }
   }
 
   const logSnap = await getDocs(query(collection(db, "logs"), where("steamId", "==", steamId)));
