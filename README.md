@@ -15,7 +15,7 @@ Maison de jeu clandestine de l'Ordre (univers Demon Slayer RP — façade humain
 | `croupier.html` | Salle croupier (accès aux tables) | Croupier |
 | `admin.html` | Dashboard Intendance (stats, staff, audit) | Admin |
 | `spectateur.html` | Vue live en lecture seule | Public |
-| `games/coinflip.html` | Pile ou Face (solo, ×1.9) | Joueur |
+| `games/coinflip.html` | Pile ou Face (solo, ×1.5) | Joueur |
 | `games/dice.html` | Dés (solo, devine 1-6, ×5) | Joueur |
 | `games/roulette.html` | Roulette européenne multijoueur | Croupier pilote, joueurs misent, spectateurs observent |
 | `games/blackjack.html` | Blackjack multijoueur | Croupier pilote, joueurs misent, spectateurs observent |
