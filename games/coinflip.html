@@ -13,7 +13,7 @@
 .balance-pill.pulse{animation:pillPulse .5s ease;}
 @keyframes pillPulse{0%{transform:scale(1)}40%{transform:scale(1.08)}100%{transform:scale(1)}}
 .coin-stage{display:flex;align-items:center;justify-content:center;height:240px;perspective:800px;position:relative;overflow:hidden;}
-.coin-glow{position:absolute;width:180px;height:180px;border-radius:50%;background:radial-gradient(circle,rgba(201,162,39,.25),transparent 70%);
+.coin-glow{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:180px;height:180px;border-radius:50%;background:radial-gradient(circle,rgba(201,162,39,.25),transparent 70%);
   opacity:0;transition:opacity .3s;}
 .coin-glow.on{opacity:1;animation:glowPulse 1.2s ease-in-out infinite;}
 .coin{width:150px;height:150px;border-radius:50%;position:relative;transform-style:preserve-3d;transition:transform 1.8s cubic-bezier(.2,.8,.3,1);

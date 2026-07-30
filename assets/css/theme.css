@@ -91,8 +91,7 @@ a{color:inherit;text-decoration:none;}
 .stat-card{background:var(--panel);border:1px solid var(--border);border-top:3px solid var(--sc,#c9a227);border-radius:8px;
   padding:20px 16px;text-align:center;transition:.25s;animation:fadeUp .5s ease-out both;position:relative;overflow:hidden;}
 .stat-card:hover{transform:translateY(-4px);box-shadow:0 14px 36px rgba(0,0,0,.6),0 0 20px rgba(201,162,39,.08);}
-.stat-icon{font-size:1.4rem;margin-bottom:8px;animation:iconFloat 3.4s ease-in-out infinite;}
-@keyframes iconFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+.stat-icon{font-size:1.4rem;margin-bottom:8px;}
 .stat-val{font-family:'Cinzel',serif;font-size:2.1rem;font-weight:900;color:var(--sc,#c9a227);text-shadow:0 0 20px var(--sc,#c9a227);line-height:1;margin-bottom:5px;}
 .stat-label{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:2px;color:var(--text-muted);text-transform:uppercase;}
 
@@ -233,10 +232,10 @@ a{color:inherit;text-decoration:none;}
   animation:wowUnderline 3.2s ease-in-out infinite;}
 @keyframes wowUnderline{0%,100%{width:64px;opacity:.75}50%{width:84px;opacity:1}}
 
-/* Icônes flottantes génériques — pas sur .gate-card-icon/.ti/.gi : ce sont des
-   icônes de menu/navigation, elles ne doivent bouger qu'au survol, jamais au repos. */
-.stat-icon,.chip-icon{display:inline-block;animation:wowFloat 3.4s ease-in-out infinite;}
-@keyframes wowFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+/* Aucune icône ne flotte au repos (.gate-card-icon/.ti/.gi/.stat-icon/.chip-icon) :
+   ça donnait l'impression que les menus et pastilles de solde "bougeaient" en
+   permanence, même sans la souris dessus. Le mouvement n'apparaît plus qu'au
+   survol/clic (voir le pack "juice" plus bas). */
 
 /* Tilt 3D + reflet holographique (appliqué via JS uiFx.js à .panel,.stat-card,.card-visual,.card-result) */
 .panel,.stat-card,.card-visual,.card-result{will-change:transform;position:relative;}

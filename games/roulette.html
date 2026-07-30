@@ -50,7 +50,7 @@
 .balance-pill{transition:.2s;}
 .balance-pill.pulse{animation:pillPulse .5s ease;}
 @keyframes pillPulse{0%{transform:scale(1)}40%{transform:scale(1.08)}100%{transform:scale(1)}}
-.wheel-glow{position:absolute;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,rgba(201,162,39,.2),transparent 70%);opacity:0;transition:opacity .4s;pointer-events:none;}
+.wheel-glow{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,rgba(201,162,39,.2),transparent 70%);opacity:0;transition:opacity .4s;pointer-events:none;}
 .wheel-glow.on{opacity:1;animation:glowPulse 1s ease-in-out infinite;}
 .wheel-stage{position:relative;}
 .num-cell.winning{animation:numWin 1s ease-in-out 3;box-shadow:0 0 0 2px var(--gold);z-index:2;}
@@ -76,8 +76,9 @@
   <div class="game-grid">
     <div class="panel">
       <div class="wheel-stage">
-        <div class="wheel-glow" id="wheelGlow"></div>
-        <div class="wheel" id="wheel"></div>
+        <div class="wheel" id="wheel">
+          <div class="wheel-glow" id="wheelGlow"></div>
+        </div>
         <div class="result-number" id="resultNumber">—</div>
         <div class="status-line" id="statusLine">En attente du Croupier…</div>
       </div>

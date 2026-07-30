@@ -13,7 +13,7 @@
 .balance-pill.pulse{animation:pillPulse .5s ease;}
 @keyframes pillPulse{0%{transform:scale(1)}40%{transform:scale(1.08)}100%{transform:scale(1)}}
 .dice-stage{display:flex;align-items:center;justify-content:center;height:180px;perspective:600px;position:relative;}
-.die-glow{position:absolute;width:150px;height:150px;border-radius:20px;background:radial-gradient(circle,rgba(201,162,39,.22),transparent 70%);opacity:0;transition:opacity .3s;}
+.die-glow{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:150px;height:150px;border-radius:20px;background:radial-gradient(circle,rgba(201,162,39,.22),transparent 70%);opacity:0;transition:opacity .3s;}
 .die-glow.on{opacity:1;animation:glowPulse 1s ease-in-out infinite;}
 .die{width:100px;height:100px;border-radius:16px;background:linear-gradient(150deg,#1a0a02,#0a0402);border:2px solid rgba(201,162,39,.4);
   display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-size:3rem;font-weight:900;color:var(--gold2);
