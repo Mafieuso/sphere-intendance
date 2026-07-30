@@ -3,8 +3,8 @@
    considérée expirée (calcul côté client à partir de lastTransactionAt,
    pas besoin de fonction planifiée côté serveur). */
 import {
-  db, collection, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, query, where,
-  orderBy, limit, runTransaction, serverTimestamp
+  db, collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc, query, where,
+  orderBy, limit, runTransaction, serverTimestamp, increment
 } from "./firebase-init.js";
 import { logAction } from "./logs.js";
 
@@ -84,6 +84,7 @@ export async function createCard({ steamId, playerName, staff }){
    amount positif = crédit, négatif = débit. Rejette si le solde deviendrait négatif. */
 export async function adjustBalance({ cardId, amount, type, staff, gameId, note }){
   const cardRef = doc(db, "playerCards", cardId);
+  const statsRef = doc(db, "stats", "global");
   let result;
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(cardRef);
@@ -92,6 +93,10 @@ export async function adjustBalance({ cardId, amount, type, staff, gameId, note 
     const newBalance = (card.balance || 0) + amount;
     if(newBalance < 0) throw new Error("Solde insuffisant.");
     tx.update(cardRef, { balance: newBalance, lastTransactionAt: serverTimestamp() });
+    /* Profit du casino tenu à jour en direct (compteur atomique) plutôt que
+       recalculé en relisant tout l'historique des transactions à chaque
+       affichage — ça évite de faire exploser les lectures Firestore. */
+    if(gameId) tx.set(statsRef, { casinoProfitTokens: increment(-amount) }, { merge: true });
     result = { steamId: card.steamId, playerName: card.playerName, balanceAfter: newBalance };
   });
 
@@ -124,17 +129,36 @@ export async function totalTokensInCirculation(){
 
 /* Profit net de la maison, en jetons : -somme des transactions liées à un jeu
    (mise = la maison encaisse, gain = la maison paie). Les dépôts/retraits ne
-   comptent pas — ce ne sont que des échanges de devise, pas du profit de jeu. */
+   comptent pas — ce ne sont que des échanges de devise, pas du profit de jeu.
+   Lit un compteur maintenu à jour (1 seule lecture) plutôt que de relire tout
+   l'historique des transactions à chaque appel. La toute première fois après
+   ce déploiement, le compteur n'existe pas encore : on fait le calcul complet
+   une seule fois pour l'initialiser, puis plus jamais. */
 export async function casinoProfitTokens(){
+  const statsRef = doc(db, "stats", "global");
+  const statsSnap = await getDoc(statsRef);
+  if(statsSnap.exists() && typeof statsSnap.data().casinoProfitTokens === "number"){
+    return statsSnap.data().casinoProfitTokens;
+  }
   const snap = await getDocs(query(collection(db, "transactions"), where("gameId", "!=", null)));
-  return snap.docs.reduce((sum, d) => sum - (d.data().amount || 0), 0);
+  const total = snap.docs.reduce((sum, d) => sum - (d.data().amount || 0), 0);
+  await setDoc(statsRef, { casinoProfitTokens: total }, { merge: true });
+  return total;
 }
 
 /* Supprime une carte joueur ainsi que toutes ses transactions et entrées de
    journal d'audit associées (aucune trace ne doit subsister). */
 export async function deleteCard(cardId, steamId, staff){
   const txSnap = await getDocs(query(collection(db, "transactions"), where("cardId", "==", cardId)));
-  for(const d of txSnap.docs){ await deleteDoc(doc(db, "transactions", d.id)); }
+  let profitReversal = 0;
+  for(const d of txSnap.docs){
+    const t = d.data();
+    if(t.gameId) profitReversal += (t.amount || 0);
+    await deleteDoc(doc(db, "transactions", d.id));
+  }
+  if(profitReversal !== 0){
+    await setDoc(doc(db, "stats", "global"), { casinoProfitTokens: increment(profitReversal) }, { merge: true });
+  }
 
   const logSnap = await getDocs(query(collection(db, "logs"), where("steamId", "==", steamId)));
   for(const d of logSnap.docs){ await deleteDoc(doc(db, "logs", d.id)); }

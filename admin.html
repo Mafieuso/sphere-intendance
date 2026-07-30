@@ -306,7 +306,12 @@ document.getElementById("btnConfirmDelete").addEventListener("click", async () =
 loadStaff();
 loadCards();
 loadProfit();
-setInterval(() => { loadCards(); loadProfit(); }, 30000);
+/* Rafraîchi moins souvent, et seulement quand l'onglet est réellement affiché
+   (économise des lectures Firestore quand le Dashboard reste ouvert en fond). */
+setInterval(() => {
+  if(document.visibilityState !== "visible") return;
+  loadCards(); loadProfit();
+}, 120000);
 </script>
 </body>
 </html>

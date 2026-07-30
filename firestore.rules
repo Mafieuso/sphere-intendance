@@ -75,5 +75,13 @@ service cloud.firestore {
       allow read: if true;
       allow write: if true;
     }
+
+    // Compteurs agrégés (ex: profit du casino) maintenus par increment() côté
+    // client, pour éviter de relire tout l'historique des transactions à
+    // chaque affichage — ce qui faisait vite exploser le quota de lectures.
+    match /stats/{statId} {
+      allow read: if true;
+      allow write: if true;
+    }
   }
 }
