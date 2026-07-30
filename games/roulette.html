@@ -131,7 +131,6 @@ const TABLE_ID = "roulette-1";
 const tableRef = doc(db, "tables", TABLE_ID);
 const RED_NUMBERS = new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
 function numberColor(n){ if(n===0) return "green"; return RED_NUMBERS.has(n) ? "red" : "black"; }
-function colorLabel(c){ return c==="red"?"rouge":c==="black"?"noir":"vert"; }
 
 const staff = getSession();
 const player = getPlayerSession();
@@ -210,13 +209,13 @@ document.getElementById("btnPlaceBet")?.addEventListener("click", async () => {
     if(isExpired(card)) return toast("Carte expirée.", "error");
     if(card.balance < amount) return toast("Solde insuffisant.", "warn");
 
-    await adjustBalance({ cardId: player.id, amount: -amount, type: "mise", gameId: "roulette", note: `Mise ${amount} jeton(s) sur ${selectedBet.type==='color'?colorLabel(selectedBet.value):('numéro '+selectedBet.value)}` });
+    await adjustBalance({ cardId: player.id, amount: -amount, type: "mise", gameId: "roulette", note: `Mise ${amount} jeton(s) sur ${selectedBet.type==='color'?selectedBet.value:('numéro '+selectedBet.value)}` });
     await addDoc(collection(db, "tables", TABLE_ID, "bets"), {
       roundId: table.roundId, cardId: player.id, steamId: player.steamId, playerName: player.playerName,
       amount, betType: selectedBet.type, betValue: selectedBet.value, createdAt: serverTimestamp()
     });
     toast("Mise placée !", "success");
-    document.getElementById("myBetHint").textContent = `Mise en cours : ${amount} 🪙 (${formatYen(tokensToYen(amount))}) sur ${selectedBet.type==='color'?colorLabel(selectedBet.value):selectedBet.value}`;
+    document.getElementById("myBetHint").textContent = `Mise en cours : ${amount} 🪙 (${formatYen(tokensToYen(amount))}) sur ${selectedBet.type==='color'?selectedBet.value:('numéro '+selectedBet.value)}`;
     refreshBalance();
   }catch(e){
     toast(e.message, "error");
@@ -314,7 +313,7 @@ if(isCroupier){
     const el = document.getElementById("croupierBetsList");
     const bets = snap.docs.map(d=>d.data()).sort((a,b)=>(b.roundId-a.roundId)).slice(0,15);
     if(!bets.length){ el.innerHTML = `<div class="empty-state"><p>Aucune mise.</p></div>`; return; }
-    el.innerHTML = bets.map(b => `<div class="bet-chip-row"><span>${b.playerName} — ${b.betType==='color'?colorLabel(b.betValue):('n°'+b.betValue)}</span><span>${b.amount} 🪙</span></div>`).join('');
+    el.innerHTML = bets.map(b => `<div class="bet-chip-row"><span>${b.playerName} — ${b.betType==='color'?b.betValue:('n°'+b.betValue)}</span><span>${b.amount} 🪙</span></div>`).join('');
   });
 }
 
