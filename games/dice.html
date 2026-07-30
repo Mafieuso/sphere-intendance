@@ -7,7 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Cinzel+Decorative:wght@700&family=Noto+Sans+JP:wght@200;300;400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/css/theme.css">
 <style>
-.wrap{max-width:520px;margin:0 auto;padding:30px 20px 80px;position:relative;z-index:2;}
+.wrap{max-width:840px;margin:0 auto;padding:30px 20px 80px;position:relative;z-index:2;}
 .gtop{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;gap:10px;flex-wrap:wrap;}
 .balance-pill{font-family:'Cinzel',serif;font-size:.8rem;color:var(--gold2);border:1px solid var(--border-h);padding:8px 16px;border-radius:20px;background:rgba(201,162,39,.05);transition:.2s;}
 .balance-pill.pulse{animation:pillPulse .5s ease;}
@@ -55,27 +55,41 @@
   <div class="page-title" style="font-size:1.15rem;padding-bottom:8px;">Lancer de Dés</div>
   <div class="page-sub">Devine le bon chiffre — Gain net 4× la mise</div>
 
-  <div class="panel">
-    <div class="dice-stage">
-      <div class="die-glow" id="dieGlow"></div>
-      <div class="die" id="die">?</div>
-    </div>
-    <div class="num-grid" id="numGrid"></div>
-    <div class="bet-row">
-      <div class="form-group">
-        <label class="form-label">Mise (jetons — 1 🪙 = 50 000 ¥)</label>
-        <input class="form-input" id="betAmount" type="number" min="1" step="1" value="1">
-        <div class="quick-bets">
-          <button type="button" class="quick-bet-btn" data-v="1">1</button>
-          <button type="button" class="quick-bet-btn" data-v="5">5</button>
-          <button type="button" class="quick-bet-btn" data-v="10">10</button>
-          <button type="button" class="quick-bet-btn" data-v="max">Max</button>
-        </div>
-        <div class="form-hint" id="betYenPreview">≈ 50 000 ¥</div>
+  <div class="game-grid">
+    <div class="panel">
+      <div class="dice-stage">
+        <div class="die-glow" id="dieGlow"></div>
+        <div class="die" id="die">?</div>
       </div>
+      <div class="num-grid" id="numGrid"></div>
+      <div class="bet-row">
+        <div class="form-group">
+          <label class="form-label">Mise (jetons — 1 🪙 = 50 000 ¥)</label>
+          <input class="form-input" id="betAmount" type="number" min="1" step="1" value="1">
+          <div class="quick-bets">
+            <button type="button" class="quick-bet-btn" data-v="1">1</button>
+            <button type="button" class="quick-bet-btn" data-v="5">5</button>
+            <button type="button" class="quick-bet-btn" data-v="10">10</button>
+            <button type="button" class="quick-bet-btn" data-v="max">Max</button>
+          </div>
+          <div class="form-hint" id="betYenPreview">≈ 50 000 ¥</div>
+        </div>
+      </div>
+      <button class="btn btn-solid btn-block btn-lg" id="btnPlay" style="margin-top:16px;">Lancer les Dés</button>
+      <div class="result-banner" id="resultBanner"></div>
     </div>
-    <button class="btn btn-solid btn-block btn-lg" id="btnPlay" style="margin-top:16px;">Lancer les Dés</button>
-    <div class="result-banner" id="resultBanner"></div>
+
+    <div class="panel rules-panel">
+      <div class="panel-title">📖 Règlement</div>
+      <ul class="rules-list">
+        <li>Choisis un chiffre de <strong>1 à 6</strong> avant de lancer.</li>
+        <li><strong>1 chance sur 6</strong> de deviner juste.</li>
+        <li>Victoire : gain net de <strong>4× la mise</strong> (5× au total, mise incluse).</li>
+        <li>Défaite : la mise complète est perdue.</li>
+        <li>Mise en jetons entiers uniquement (1 🪙 = 50 000 ¥).</li>
+      </ul>
+      <div class="rules-badge">Paiement ×5</div>
+    </div>
   </div>
 </div>
 

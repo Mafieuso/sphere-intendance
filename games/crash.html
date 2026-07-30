@@ -7,9 +7,11 @@
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Cinzel+Decorative:wght@700&family=Noto+Sans+JP:wght@200;300;400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/css/theme.css">
 <style>
-.wrap{max-width:640px;margin:0 auto;padding:30px 20px 80px;position:relative;z-index:2;}
+.wrap{max-width:1040px;margin:0 auto;padding:30px 20px 80px;position:relative;z-index:2;}
 .gtop{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;gap:10px;flex-wrap:wrap;}
-.balance-pill{font-family:'Cinzel',serif;font-size:.85rem;color:var(--gold2);border:1px solid var(--border-h);padding:8px 16px;border-radius:20px;background:rgba(201,162,39,.05);}
+.balance-pill{font-family:'Cinzel',serif;font-size:.85rem;color:var(--gold2);border:1px solid var(--border-h);padding:8px 16px;border-radius:20px;background:rgba(201,162,39,.05);transition:.2s;}
+.balance-pill.pulse{animation:pillPulse .5s ease;}
+@keyframes pillPulse{0%{transform:scale(1)}40%{transform:scale(1.08)}100%{transform:scale(1)}}
 .crash-stage{height:220px;border-radius:12px;background:linear-gradient(180deg,#160505,#050202);border:1px solid rgba(201,162,39,.2);
   display:flex;align-items:center;justify-content:center;flex-direction:column;position:relative;overflow:hidden;}
 .crash-mult{font-family:'Cinzel',serif;font-size:3.2rem;font-weight:900;color:var(--gold2);text-shadow:0 0 30px rgba(240,208,96,.4);transition:color .2s;}
@@ -23,14 +25,15 @@
 .pl-row{display:flex;justify-content:space-between;font-size:.7rem;padding:8px 12px;background:rgba(255,255,255,.02);border-radius:6px;border:1px solid rgba(255,255,255,.05);transition:.2s;}
 .pl-row.win{border-color:rgba(31,174,124,.3);color:#5ee0af;background:rgba(31,174,124,.06);}
 .pl-row.pending{color:var(--text-muted);}
-.balance-pill{transition:.2s;}
-.balance-pill.pulse{animation:pillPulse .5s ease;}
-@keyframes pillPulse{0%{transform:scale(1)}40%{transform:scale(1.08)}100%{transform:scale(1)}}
 .rocket{position:absolute;font-size:1.6rem;bottom:10px;left:8%;transition:left .1s linear,bottom .1s linear;filter:drop-shadow(0 0 8px rgba(240,208,96,.5));}
 .crash-stage.crashed-fx{animation:stageShake .5s;}
 @keyframes stageShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
 .ember-rise{position:absolute;bottom:8px;border-radius:50%;pointer-events:none;background:radial-gradient(circle,#ffcf7a,#ff5500 70%,transparent);animation:emberRise 1.4s linear forwards;}
 @keyframes emberRise{from{transform:translateY(0);opacity:.9}to{transform:translateY(-160px) translateX(var(--dx,0px));opacity:0}}
+.quick-bets{display:flex;gap:6px;margin-top:6px;}
+.quick-bet-btn{flex:1;padding:5px;font-size:.56rem;font-family:'Cinzel',serif;letter-spacing:1px;border-radius:5px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);color:var(--text-muted);transition:.15s;}
+.quick-bet-btn:hover{border-color:rgba(201,162,39,.4);color:var(--gold);}
+.croupier-controls{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;}
 </style>
 </head>
 <body>
@@ -40,39 +43,59 @@
 
 <div class="wrap">
   <div class="gtop">
-    <a href="../carte.html" class="btn btn-ghost btn-sm">← Ma Carte</a>
-    <div class="balance-pill" id="balancePill">—</div>
+    <a href="#" id="backLink" class="btn btn-ghost btn-sm">← Retour</a>
+    <div class="balance-pill" id="balancePill" style="display:none">—</div>
   </div>
   <div class="page-title" style="font-size:1.15rem;padding-bottom:8px;">📈 Ascension Fulgurante</div>
   <div class="page-sub">Encaisse avant le crash — Mise partagée multijoueur</div>
 
-  <div class="panel">
-    <div class="crash-stage" id="crashStage">
-      <div class="flame-track"></div>
-      <div class="rocket" id="rocket" style="display:none;">🚀</div>
-      <div class="crash-mult" id="crashMult">1.00×</div>
-      <div class="crash-status" id="crashStatus">En attente d'une manche…</div>
-    </div>
+  <div class="game-grid">
+    <div class="panel">
+      <div class="crash-stage" id="crashStage">
+        <div class="flame-track"></div>
+        <div class="rocket" id="rocket" style="display:none;">🚀</div>
+        <div class="crash-mult" id="crashMult">1.00×</div>
+        <div class="crash-status" id="crashStatus">En attente du Croupier…</div>
+      </div>
 
-    <div class="controls-row">
-      <div class="form-group">
-        <label class="form-label">Mise (jetons — 1 🪙 = 50 000 ¥)</label>
-        <input class="form-input" id="betAmount" type="number" min="1" step="1" value="1">
-        <div class="quick-bets" style="display:flex;gap:6px;margin-top:6px;">
-          <button type="button" class="quick-bet-btn" data-v="1" style="flex:1;padding:5px;font-size:.56rem;font-family:'Cinzel',serif;letter-spacing:1px;border-radius:5px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);color:var(--text-muted);">1</button>
-          <button type="button" class="quick-bet-btn" data-v="5" style="flex:1;padding:5px;font-size:.56rem;font-family:'Cinzel',serif;letter-spacing:1px;border-radius:5px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);color:var(--text-muted);">5</button>
-          <button type="button" class="quick-bet-btn" data-v="10" style="flex:1;padding:5px;font-size:.56rem;font-family:'Cinzel',serif;letter-spacing:1px;border-radius:5px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);color:var(--text-muted);">10</button>
+      <div id="croupierPanel" style="display:none">
+        <div class="croupier-controls">
+          <button class="btn btn-gold" id="btnNewRound">Nouvelle Manche</button>
+          <button class="btn btn-solid" id="btnLaunch" style="display:none">🚀 Décoller</button>
         </div>
       </div>
-      <button class="btn btn-jade" id="btnJoin">Miser sur la Manche</button>
-    </div>
-    <div class="croupier-controls" style="display:flex;gap:10px;margin-top:12px;">
-      <button class="btn btn-gold" id="btnNewRound">Nouvelle Manche</button>
-      <button class="btn btn-solid" id="btnLaunch" style="display:none">🚀 Décoller</button>
-      <button class="btn btn-crimson" id="btnCashout" style="display:none">💰 Encaisser</button>
+
+      <div id="playerPanel" style="display:none">
+        <div class="controls-row">
+          <div class="form-group">
+            <label class="form-label">Mise (jetons — 1 🪙 = 50 000 ¥)</label>
+            <input class="form-input" id="betAmount" type="number" min="1" step="1" value="1">
+            <div class="quick-bets">
+              <button type="button" class="quick-bet-btn" data-v="1">1</button>
+              <button type="button" class="quick-bet-btn" data-v="5">5</button>
+              <button type="button" class="quick-bet-btn" data-v="10">10</button>
+            </div>
+          </div>
+          <button class="btn btn-jade" id="btnJoin">Miser sur la Manche</button>
+        </div>
+        <button class="btn btn-crimson btn-block" id="btnCashout" style="display:none;margin-top:12px;">💰 Encaisser</button>
+      </div>
+
+      <div class="players-list" id="playersList"></div>
     </div>
 
-    <div class="players-list" id="playersList"></div>
+    <div class="panel rules-panel">
+      <div class="panel-title">📖 Règlement</div>
+      <ul class="rules-list">
+        <li>Mise avant le décollage — <strong>le Croupier</strong> fait décoller la fusée, pas les joueurs.</li>
+        <li>Le multiplicateur grimpe en temps réel dès le décollage.</li>
+        <li>Encaisse avant le crash pour remporter <strong>mise × multiplicateur</strong>.</li>
+        <li>Multiplicateur plafonné à <strong>×10 maximum</strong>.</li>
+        <li>Si tu n'as pas encaissé avant le crash, la mise est perdue.</li>
+        <li>Une seule mise par manche et par joueur.</li>
+      </ul>
+      <div class="rules-badge">Plafond ×10</div>
+    </div>
   </div>
 </div>
 
@@ -80,7 +103,8 @@
 import { initFx } from "../assets/js/fx.js";
 import { initUiFx, burst } from "../assets/js/uiFx.js";
 import { toast } from "../assets/js/toast.js";
-import { requirePlayerCard } from "../assets/js/playerSession.js";
+import { getSession } from "../assets/js/session.js";
+import { getPlayerSession } from "../assets/js/playerSession.js";
 import { getCard, adjustBalance, isExpired } from "../assets/js/cards.js";
 import { tokenDisplayHTML, formatYen, tokensToYen } from "../assets/js/economy.js";
 import {
@@ -90,16 +114,33 @@ import {
 
 initFx();
 initUiFx();
-const session = requirePlayerCard();
+
 const TABLE_ID = "crash-1";
+const MAX_MULTIPLIER = 10;
 const tableRef = doc(db, "tables", TABLE_ID);
+
+const staff = getSession();
+const player = getPlayerSession();
+const isCroupier = staff && (staff.role === "croupier" || staff.role === "admin");
+
+document.getElementById("backLink").href = isCroupier ? "../croupier.html" : (player ? "../carte.html" : "../spectateur.html");
+if(player) document.getElementById("backLink").textContent = "← Ma Carte";
+else if(!isCroupier) document.getElementById("backLink").textContent = "← Salle en Direct";
+
+if(isCroupier){ document.getElementById("croupierPanel").style.display = "block"; }
+if(player){
+  document.getElementById("playerPanel").style.display = "block";
+  document.getElementById("balancePill").style.display = "inline-block";
+  refreshBalance();
+}
+
 document.querySelectorAll(".quick-bet-btn").forEach(b => b.addEventListener("click", () => {
   document.getElementById("betAmount").value = b.dataset.v;
 }));
 
-refreshBalance();
 async function refreshBalance(){
-  const card = await getCard(session.id);
+  if(!player) return;
+  const card = await getCard(player.id);
   document.getElementById("balancePill").innerHTML = tokenDisplayHTML(card?.balance ?? 0, {small:true});
   const pill = document.getElementById("balancePill");
   pill.classList.remove("pulse"); void pill.offsetWidth; pill.classList.add("pulse");
@@ -114,12 +155,14 @@ function spawnEmber(stage){
   setTimeout(() => e.remove(), 1400);
 }
 
+/* Point de crash plafonné à ×10 maximum. */
 function genCrashPoint(){
   const r = Math.random();
-  return Math.max(1, Math.floor((0.97 / (1 - r)) * 100) / 100);
+  const raw = Math.max(1, Math.floor((0.97 / (1 - r)) * 100) / 100);
+  return Math.min(MAX_MULTIPLIER, raw);
 }
 function multiplierAt(elapsedSec){
-  return 1 + Math.pow(elapsedSec, 1.32) * 0.09;
+  return Math.min(MAX_MULTIPLIER, 1 + Math.pow(elapsedSec, 1.32) * 0.09);
 }
 
 let myBetId = null, myCashedOut = false, animTimer = null, currentTable = null;
@@ -132,19 +175,21 @@ async function ensureTable(){
 }
 ensureTable();
 
-document.getElementById("btnNewRound").addEventListener("click", async () => {
+/* ── Contrôles Croupier ── */
+document.getElementById("btnNewRound")?.addEventListener("click", async (e) => {
+  e.target.disabled = true;
   let opened = false;
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(tableRef);
     const t = snap.data();
     if(t && (t.status === "running" || t.status === "waiting")) return; // manche déjà en cours
-    tx.set(tableRef, { status: "waiting", roundId: (t?.roundId||0) + 1, crashPoint: genCrashPoint(), startedAt: null, updatedAt: serverTimestamp() });
+    tx.set(tableRef, { status: "waiting", roundId: (t?.roundId||0) + 1, crashPoint: genCrashPoint(), startedAt: null, croupierName: staff.name, updatedAt: serverTimestamp() });
     opened = true;
   });
   toast(opened ? "Nouvelle manche ouverte — placez vos mises." : "Une manche est déjà en cours.", opened ? "success" : "warn");
 });
 
-document.getElementById("btnLaunch").addEventListener("click", async (e) => {
+document.getElementById("btnLaunch")?.addEventListener("click", async (e) => {
   e.target.disabled = true;
   const snap = await getDoc(tableRef);
   const t = snap.data();
@@ -152,10 +197,11 @@ document.getElementById("btnLaunch").addEventListener("click", async (e) => {
   await setDoc(tableRef, { ...t, status: "running", startedAt: serverTimestamp(), updatedAt: serverTimestamp() });
 });
 
+/* ── Joueur : miser ── */
 let joiningCrash = false;
-document.getElementById("btnJoin").addEventListener("click", async () => {
+document.getElementById("btnJoin")?.addEventListener("click", async () => {
   if(joiningCrash) return;
-  if(!currentTable || currentTable.status !== "waiting") return toast("Attends l'ouverture des mises.", "warn");
+  if(!currentTable || currentTable.status !== "waiting") return toast("Attends que le Croupier ouvre les mises.", "warn");
   const amount = parseInt(document.getElementById("betAmount").value, 10);
   if(!amount || amount <= 0) return toast("Mise invalide.", "warn");
   if(myBetId) return toast("Tu as déjà misé sur cette manche.", "warn");
@@ -163,16 +209,17 @@ document.getElementById("btnJoin").addEventListener("click", async () => {
   const btnJoin = document.getElementById("btnJoin");
   btnJoin.disabled = true;
   try{
-    const card = await getCard(session.id);
+    const card = await getCard(player.id);
     if(isExpired(card)) return toast("Carte expirée.", "error");
     if(card.balance < amount) return toast("Solde insuffisant.", "warn");
 
-    await adjustBalance({ cardId: session.id, amount: -amount, type: "mise", gameId: "crash", note: `Mise ${amount} jeton(s) — Ascension Fulgurante` });
+    await adjustBalance({ cardId: player.id, amount: -amount, type: "mise", gameId: "crash", note: `Mise ${amount} jeton(s) — Ascension Fulgurante` });
     const ref = await addDoc(collection(db, "tables", TABLE_ID, "bets"), {
-      roundId: currentTable.roundId, cardId: session.id, steamId: session.steamId, playerName: session.playerName,
+      roundId: currentTable.roundId, cardId: player.id, steamId: player.steamId, playerName: player.playerName,
       amount, cashedOut: false, cashOutMultiplier: null, createdAt: serverTimestamp()
     });
     myBetId = ref.id; myCashedOut = false;
+    updateCashoutVisibility();
     toast("Mise engagée pour la prochaine ascension.", "success");
     refreshBalance();
   }catch(e){
@@ -183,25 +230,53 @@ document.getElementById("btnJoin").addEventListener("click", async () => {
   }
 });
 
-document.getElementById("btnCashout").addEventListener("click", async () => {
+/* ── Joueur : encaisser ── */
+document.getElementById("btnCashout")?.addEventListener("click", async () => {
   if(!myBetId || myCashedOut || !currentTable || currentTable.status !== "running") return;
   const elapsed = (Date.now() - currentTable.startedAt.toMillis()) / 1000;
   const mult = multiplierAt(elapsed);
   if(mult >= currentTable.crashPoint) return; // déjà crashé
   myCashedOut = true;
-  const bet = (await getDocs(query(collection(db,"tables",TABLE_ID,"bets"), where("roundId","==",currentTable.roundId), where("cardId","==",session.id)))).docs[0];
-  if(!bet) return;
-  const amount = bet.data().amount;
-  const payout = Math.floor(amount * mult);
-  await updateDoc(doc(db,"tables",TABLE_ID,"bets",bet.id), { cashedOut: true, cashOutMultiplier: mult });
-  await adjustBalance({ cardId: session.id, amount: payout, type: "gain", gameId: "crash", note: `Encaissé à ${mult.toFixed(2)}×` });
-  toast(`Encaissé à ${mult.toFixed(2)}× — +${payout} 🪙 (${formatYen(tokensToYen(payout))})`, "success");
-  const multEl = document.getElementById("crashMult");
-  multEl.classList.add("cashed");
-  const r = multEl.getBoundingClientRect();
-  burst(r.left + r.width/2, r.top + r.height/2, { colors: ['#5ee0af','#f5d870'] });
-  refreshBalance();
+  updateCashoutVisibility();
+  try{
+    const bet = (await getDocs(query(collection(db,"tables",TABLE_ID,"bets"), where("roundId","==",currentTable.roundId), where("cardId","==",player.id)))).docs[0];
+    if(!bet){ myCashedOut = false; updateCashoutVisibility(); return; }
+    const amount = bet.data().amount;
+    const payout = Math.floor(amount * mult);
+    await updateDoc(doc(db,"tables",TABLE_ID,"bets",bet.id), { cashedOut: true, cashOutMultiplier: mult });
+    await adjustBalance({ cardId: player.id, amount: payout, type: "gain", gameId: "crash", note: `Encaissé à ${mult.toFixed(2)}×` });
+    toast(`Encaissé à ${mult.toFixed(2)}× — +${payout} 🪙 (${formatYen(tokensToYen(payout))})`, "success");
+    const multEl = document.getElementById("crashMult");
+    multEl.classList.add("cashed");
+    const r = multEl.getBoundingClientRect();
+    burst(r.left + r.width/2, r.top + r.height/2, { colors: ['#5ee0af','#f5d870'] });
+    refreshBalance();
+  }catch(e){
+    toast(e.message, "error");
+  }
 });
+
+function updateCashoutVisibility(){
+  const btnCashout = document.getElementById("btnCashout");
+  if(!btnCashout) return;
+  btnCashout.style.display = (player && currentTable?.status === "running" && myBetId && !myCashedOut) ? "block" : "none";
+}
+
+/* Resynchronise myBetId/myCashedOut depuis Firestore (fiabilise le bouton Encaisser
+   après un rechargement de page ou une reconnexion en cours de manche). */
+async function syncMyBet(){
+  if(!player || !currentTable) return;
+  try{
+    const snap = await getDocs(query(collection(db,"tables",TABLE_ID,"bets"), where("roundId","==",currentTable.roundId), where("cardId","==",player.id)));
+    if(snap.empty){ myBetId = null; myCashedOut = false; }
+    else{
+      const b = snap.docs[0];
+      myBetId = b.id;
+      myCashedOut = !!b.data().cashedOut;
+    }
+  }catch(e){ /* silencieux */ }
+  updateCashoutVisibility();
+}
 
 /* ── Boucle d'animation locale du multiplicateur ── */
 function stopAnim(){ if(animTimer){ cancelAnimationFrame(animTimer); animTimer = null; } }
@@ -226,7 +301,7 @@ function startAnim(startedAtMs, crashPoint){
       return;
     }
     el.textContent = mult.toFixed(2) + "×";
-    const progress = Math.min(1, (mult - 1) / 6);
+    const progress = Math.min(1, (mult - 1) / (MAX_MULTIPLIER - 1));
     rocket.style.left = (8 + progress * 78) + "%";
     rocket.style.bottom = (10 + progress * 150) + "px";
     if(!lastEmber || now - lastEmber > 90){ lastEmber = now; spawnEmber(stage); }
@@ -249,6 +324,7 @@ async function handleLocalCrash(crashPoint){
 }
 
 /* ── Sync live table ── */
+let lastStatus = null;
 onSnapshot(tableRef, (snap) => {
   const t = snap.data();
   if(!t) return;
@@ -257,7 +333,6 @@ onSnapshot(tableRef, (snap) => {
   const statusLine = document.getElementById("crashStatus");
   const btnNew = document.getElementById("btnNewRound");
   const btnLaunch = document.getElementById("btnLaunch");
-  const btnCashout = document.getElementById("btnCashout");
   const btnJoin = document.getElementById("btnJoin");
 
   if(t.roundId !== prevRound){ myBetId = null; myCashedOut = false; crashHandled = false; }
@@ -267,24 +342,28 @@ onSnapshot(tableRef, (snap) => {
     document.getElementById("crashMult").textContent = "1.00×";
     document.getElementById("crashMult").classList.remove("crashed","cashed");
     document.getElementById("rocket").style.display = "none";
-    statusLine.textContent = "Mises ouvertes — en attente du décollage";
-    btnNew.style.display = "none"; btnLaunch.style.display = "inline-flex"; btnLaunch.disabled = false; btnCashout.style.display = "none"; btnJoin.disabled = false;
+    statusLine.textContent = `Mises ouvertes — Croupier : ${t.croupierName || '—'}`;
+    if(btnJoin) btnJoin.disabled = false;
+    if(isCroupier){ btnNew.style.display = "none"; btnLaunch.style.display = "inline-flex"; btnLaunch.disabled = false; }
   }
   if(t.status === "running"){
-    statusLine.textContent = "En vol… encaisse avant le crash !";
-    btnNew.style.display = "none"; btnLaunch.style.display = "none";
-    btnCashout.style.display = myBetId && !myCashedOut ? "inline-flex" : "none";
-    btnJoin.disabled = true;
+    if(lastStatus !== "running") statusLine.textContent = "En vol… encaisse avant le crash !";
+    if(isCroupier){ btnNew.style.display = "none"; btnLaunch.style.display = "none"; }
+    if(btnJoin) btnJoin.disabled = true;
     if(t.startedAt) startAnim(t.startedAt.toMillis(), t.crashPoint);
+    if(player) syncMyBet();
   }
   if(t.status === "crashed"){
     stopAnim();
     statusLine.textContent = `Crash à ${t.crashPoint.toFixed(2)}× — Manche #${t.roundId}`;
     document.getElementById("crashMult").textContent = t.crashPoint.toFixed(2) + "×";
     document.getElementById("crashMult").classList.add("crashed");
-    btnNew.style.display = "inline-flex"; btnLaunch.style.display = "none"; btnCashout.style.display = "none"; btnJoin.disabled = true;
+    if(isCroupier){ btnNew.style.display = "inline-flex"; btnLaunch.style.display = "none"; }
+    if(btnJoin) btnJoin.disabled = true;
+    updateCashoutVisibility();
     refreshBalance();
   }
+  lastStatus = t.status;
 });
 
 /* Liste des participants de la manche en cours */

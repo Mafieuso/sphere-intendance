@@ -19,7 +19,7 @@ Maison de jeu clandestine de l'Ordre (univers Demon Slayer RP — façade humain
 | `games/dice.html` | Dés (solo, devine 1-6, ×5) | Joueur |
 | `games/roulette.html` | Roulette européenne multijoueur | Croupier pilote, joueurs misent, spectateurs observent |
 | `games/blackjack.html` | Blackjack multijoueur | Croupier pilote, joueurs misent, spectateurs observent |
-| `games/crash.html` | Ascension Fulgurante (crash game) | Joueurs pilotent ensemble |
+| `games/crash.html` | Ascension Fulgurante (crash game, plafond ×10) | Croupier fait décoller, joueurs misent/encaissent |
 
 ## Rôles & Permissions
 

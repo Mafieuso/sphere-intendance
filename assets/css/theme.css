@@ -286,3 +286,17 @@ a{color:inherit;text-decoration:none;}
 @media(prefers-reduced-motion:reduce){
   .page-title::before,.stat-icon,.gate-card-icon,.ti,.gi,.chip-icon,.stat-val,#sidebar,#topbar,.badge::after,.toast,.btn-solid{animation:none!important;}
 }
+
+/* ══════════════════════════════════════════════════════
+   ═══════════  MISE EN PAGE JEU + RÈGLEMENT  ═══════════
+   ══════════════════════════════════════════════════════ */
+.game-grid{display:grid;grid-template-columns:1fr 280px;gap:20px;align-items:start;}
+@media(max-width:860px){.game-grid{grid-template-columns:1fr;}}
+.rules-panel{position:sticky;top:20px;}
+.rules-panel .panel-title{display:flex;align-items:center;gap:8px;}
+.rules-list{list-style:none;display:flex;flex-direction:column;gap:12px;}
+.rules-list li{font-size:.72rem;line-height:1.6;color:var(--text-muted);padding-left:18px;position:relative;}
+.rules-list li::before{content:'◆';position:absolute;left:0;top:0;color:var(--gold);font-size:.6rem;}
+.rules-list li strong{color:var(--text);font-weight:600;}
+.rules-badge{display:inline-block;margin-top:10px;padding:5px 12px;border-radius:20px;font-family:'Cinzel',serif;
+  font-size:.56rem;letter-spacing:2px;text-transform:uppercase;border:1px solid rgba(201,162,39,.3);color:var(--gold);background:rgba(201,162,39,.06);}

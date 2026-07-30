@@ -7,7 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Cinzel+Decorative:wght@700&family=Noto+Sans+JP:wght@200;300;400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/css/theme.css">
 <style>
-.wrap{max-width:760px;margin:0 auto;padding:30px 20px 80px;position:relative;z-index:2;}
+.wrap{max-width:1040px;margin:0 auto;padding:30px 20px 80px;position:relative;z-index:2;}
 .gtop{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;gap:10px;flex-wrap:wrap;}
 .balance-pill{font-family:'Cinzel',serif;font-size:.85rem;color:var(--gold2);border:1px solid var(--border-h);padding:8px 16px;border-radius:20px;background:rgba(201,162,39,.05);}
 .dealer-zone{text-align:center;padding:18px 0 24px;border-bottom:1px dashed var(--border);margin-bottom:20px;}
@@ -59,40 +59,55 @@
   <div class="page-title" style="font-size:1.15rem;padding-bottom:8px;">🃏 Blackjack</div>
   <div class="page-sub" id="statusLabel">Table blackjack-1</div>
 
-  <div class="panel">
-    <div class="dealer-zone">
-      <div class="dealer-label">Croupier</div>
-      <div class="hand" id="dealerHand"></div>
-      <div class="hand-total" id="dealerTotal"></div>
-    </div>
-
-    <div class="seats-grid" id="seatsGrid"></div>
-
-    <div id="croupierPanel" style="display:none">
-      <div class="croupier-controls">
-        <button class="btn btn-jade" id="btnNewRound">Ouvrir les Mises</button>
-        <button class="btn btn-gold" id="btnDeal">Distribuer</button>
-        <button class="btn btn-crimson" id="btnReveal">Révéler & Résoudre</button>
+  <div class="game-grid">
+    <div class="panel">
+      <div class="dealer-zone">
+        <div class="dealer-label">Croupier</div>
+        <div class="hand" id="dealerHand"></div>
+        <div class="hand-total" id="dealerTotal"></div>
       </div>
-    </div>
 
-    <div id="playerPanel" style="display:none">
-      <div class="join-row" id="joinRow">
-        <div class="form-group">
-          <label class="form-label">Mise (jetons — 1 🪙 = 50 000 ¥)</label>
-          <input class="form-input" id="betAmount" type="number" min="1" step="1" value="1">
-          <div class="quick-bets">
-            <button type="button" class="quick-bet-btn" data-v="1">1</button>
-            <button type="button" class="quick-bet-btn" data-v="5">5</button>
-            <button type="button" class="quick-bet-btn" data-v="10">10</button>
-          </div>
+      <div class="seats-grid" id="seatsGrid"></div>
+
+      <div id="croupierPanel" style="display:none">
+        <div class="croupier-controls">
+          <button class="btn btn-jade" id="btnNewRound">Ouvrir les Mises</button>
+          <button class="btn btn-gold" id="btnDeal">Distribuer</button>
+          <button class="btn btn-crimson" id="btnReveal">Révéler & Résoudre</button>
         </div>
-        <button class="btn btn-solid" id="btnJoin">Rejoindre la Table</button>
       </div>
-      <div class="action-row" id="actionRow" style="display:none">
-        <button class="btn btn-jade" id="btnHit">Tirer (Hit)</button>
-        <button class="btn btn-crimson" id="btnStand">Rester (Stand)</button>
+
+      <div id="playerPanel" style="display:none">
+        <div class="join-row" id="joinRow">
+          <div class="form-group">
+            <label class="form-label">Mise (jetons — 1 🪙 = 50 000 ¥)</label>
+            <input class="form-input" id="betAmount" type="number" min="1" step="1" value="1">
+            <div class="quick-bets">
+              <button type="button" class="quick-bet-btn" data-v="1">1</button>
+              <button type="button" class="quick-bet-btn" data-v="5">5</button>
+              <button type="button" class="quick-bet-btn" data-v="10">10</button>
+            </div>
+          </div>
+          <button class="btn btn-solid" id="btnJoin">Rejoindre la Table</button>
+        </div>
+        <div class="action-row" id="actionRow" style="display:none">
+          <button class="btn btn-jade" id="btnHit">Tirer (Hit)</button>
+          <button class="btn btn-crimson" id="btnStand">Rester (Stand)</button>
+        </div>
       </div>
+    </div>
+
+    <div class="panel rules-panel">
+      <div class="panel-title">📖 Règlement</div>
+      <ul class="rules-list">
+        <li>Rejoins la table pendant que les mises sont ouvertes.</li>
+        <li>Le Croupier distribue <strong>2 cartes</strong> à chacun et <strong>2 au croupier</strong> (une cachée).</li>
+        <li>Approche-toi de <strong>21</strong> sans dépasser (Tirer/Rester).</li>
+        <li><strong>Blackjack</strong> (21 avec 2 cartes) paie <strong>×2.5</strong>.</li>
+        <li>Victoire simple paie <strong>×2</strong>. Égalité (push) rembourse la mise.</li>
+        <li>Le croupier tire automatiquement jusqu'à <strong>17</strong>.</li>
+      </ul>
+      <div class="rules-badge">Blackjack ×2.5 · Victoire ×2</div>
     </div>
   </div>
 </div>
