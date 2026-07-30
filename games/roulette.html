@@ -31,13 +31,17 @@
 .color-btn.red{background:linear-gradient(160deg,#7a0e14,#3a0508);color:#ffaaaa;}
 .color-btn.black{background:linear-gradient(160deg,#1a1a1a,#050505);color:#ddd;}
 .color-btn.selected{border-color:var(--gold);box-shadow:0 0 20px rgba(201,162,39,.3);}
-.numbers-grid{display:grid;grid-template-columns:repeat(9,1fr);gap:4px;margin-top:12px;}
-.num-cell{aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-weight:700;
-  font-size:.68rem;border-radius:5px;border:1px solid rgba(255,255,255,.08);cursor:pointer;transition:.15s;}
+.table-board{overflow-x:auto;margin-top:12px;padding-bottom:4px;}
+.numbers-grid{display:grid;grid-auto-flow:column;grid-template-rows:repeat(3,1fr);grid-template-columns:48px repeat(12,minmax(38px,1fr));
+  gap:4px;min-width:540px;}
+.num-cell{display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-weight:700;
+  font-size:.72rem;border-radius:5px;border:1px solid rgba(255,255,255,.08);cursor:pointer;transition:.15s;min-height:38px;}
+.num-cell:hover{filter:brightness(1.25);transform:translateY(-1px);}
 .num-cell.red{background:rgba(122,14,20,.35);color:#ff9999;}
-.num-cell.black{background:rgba(255,255,255,.04);color:#ddd;}
-.num-cell.green{background:rgba(31,174,124,.2);color:#5ee0af;grid-column:1/-1;}
-.num-cell.selected{outline:2px solid var(--gold);}
+.num-cell.black{background:rgba(255,255,255,.05);color:#ddd;}
+.num-cell.green{background:linear-gradient(160deg,rgba(31,174,124,.3),rgba(31,174,124,.12));color:#5ee0af;
+  grid-column:1/2;grid-row:1/4;font-size:1rem;letter-spacing:1px;border-color:rgba(94,224,175,.3);}
+.num-cell.selected{outline:2px solid var(--gold);box-shadow:0 0 12px rgba(201,162,39,.35);}
 .bet-row{display:flex;gap:10px;margin-top:16px;align-items:flex-end;}
 .bet-row .form-group{flex:1;margin-bottom:0;}
 .bets-list{margin-top:16px;display:flex;flex-direction:column;gap:6px;max-height:180px;overflow-y:auto;}
@@ -90,7 +94,7 @@
         <button class="color-btn red" data-type="color" data-value="rouge">🔴 Rouge (×2)</button>
         <button class="color-btn black" data-type="color" data-value="noir">⚫ Noir (×2)</button>
       </div>
-      <div class="numbers-grid" id="numbersGrid"></div>
+      <div class="table-board"><div class="numbers-grid" id="numbersGrid"></div></div>
       <div class="bet-row">
         <div class="form-group">
           <label class="form-label">Mise (jetons — 1 🪙 = 50 000 ¥)</label>
@@ -189,29 +193,42 @@ async function ensureTable(){
 ensureTable();
 
 /* ── Placer une mise (joueur) ── */
+let placingBet = false;
 document.getElementById("btnPlaceBet")?.addEventListener("click", async () => {
+  if(placingBet) return;
   if(!selectedBet) return toast("Choisis une couleur ou un numéro.", "warn");
   const amount = parseInt(document.getElementById("betAmount").value, 10);
   if(!amount || amount <= 0) return toast("Mise invalide.", "warn");
-  const tableSnap = await getDoc(tableRef);
-  const table = tableSnap.data();
-  if(!table || table.status !== "betting") return toast("Les mises ne sont pas ouvertes.", "warn");
-  const card = await getCard(player.id);
-  if(isExpired(card)) return toast("Carte expirée.", "error");
-  if(card.balance < amount) return toast("Solde insuffisant.", "warn");
+  placingBet = true;
+  const btn = document.getElementById("btnPlaceBet");
+  btn.disabled = true;
+  try{
+    const tableSnap = await getDoc(tableRef);
+    const table = tableSnap.data();
+    if(!table || table.status !== "betting") return toast("Les mises ne sont pas ouvertes.", "warn");
+    const card = await getCard(player.id);
+    if(isExpired(card)) return toast("Carte expirée.", "error");
+    if(card.balance < amount) return toast("Solde insuffisant.", "warn");
 
-  await adjustBalance({ cardId: player.id, amount: -amount, type: "mise", gameId: "roulette", note: `Mise ${amount} jeton(s) sur ${selectedBet.type==='color'?colorLabel(selectedBet.value):('numéro '+selectedBet.value)}` });
-  await addDoc(collection(db, "tables", TABLE_ID, "bets"), {
-    roundId: table.roundId, cardId: player.id, steamId: player.steamId, playerName: player.playerName,
-    amount, betType: selectedBet.type, betValue: selectedBet.value, createdAt: serverTimestamp()
-  });
-  toast("Mise placée !", "success");
-  document.getElementById("myBetHint").textContent = `Mise en cours : ${amount} 🪙 (${formatYen(tokensToYen(amount))}) sur ${selectedBet.type==='color'?colorLabel(selectedBet.value):selectedBet.value}`;
-  refreshBalance();
+    await adjustBalance({ cardId: player.id, amount: -amount, type: "mise", gameId: "roulette", note: `Mise ${amount} jeton(s) sur ${selectedBet.type==='color'?colorLabel(selectedBet.value):('numéro '+selectedBet.value)}` });
+    await addDoc(collection(db, "tables", TABLE_ID, "bets"), {
+      roundId: table.roundId, cardId: player.id, steamId: player.steamId, playerName: player.playerName,
+      amount, betType: selectedBet.type, betValue: selectedBet.value, createdAt: serverTimestamp()
+    });
+    toast("Mise placée !", "success");
+    document.getElementById("myBetHint").textContent = `Mise en cours : ${amount} 🪙 (${formatYen(tokensToYen(amount))}) sur ${selectedBet.type==='color'?colorLabel(selectedBet.value):selectedBet.value}`;
+    refreshBalance();
+  }catch(e){
+    toast(e.message, "error");
+  }finally{
+    placingBet = false;
+    btn.disabled = false;
+  }
 });
 
 /* ── Contrôles Croupier ── */
-document.getElementById("btnNewRound")?.addEventListener("click", async () => {
+document.getElementById("btnNewRound")?.addEventListener("click", async (e) => {
+  e.target.disabled = true;
   const snap = await getDoc(tableRef);
   const table = snap.data() || { roundId: 0 };
   await setDoc(tableRef, {
@@ -221,10 +238,11 @@ document.getElementById("btnNewRound")?.addEventListener("click", async () => {
   toast("Nouvelle manche ouverte — les joueurs peuvent miser.", "success");
 });
 
-document.getElementById("btnCloseSpin")?.addEventListener("click", async () => {
+document.getElementById("btnCloseSpin")?.addEventListener("click", async (e) => {
+  e.target.disabled = true;
   const snap = await getDoc(tableRef);
   const table = snap.data();
-  if(!table || table.status !== "betting") return toast("Aucune manche ouverte.", "warn");
+  if(!table || table.status !== "betting"){ toast("Aucune manche ouverte.", "warn"); e.target.disabled = false; return; }
 
   await setDoc(tableRef, { ...table, status: "spinning", updatedAt: serverTimestamp() });
   const result = Math.floor(Math.random()*37);
@@ -280,6 +298,12 @@ onSnapshot(tableRef, (snap) => {
   }
   if(table.status === "closed"){
     statusLine.textContent = "En attente du Croupier…";
+  }
+  if(isCroupier){
+    const btnNew = document.getElementById("btnNewRound");
+    const btnClose = document.getElementById("btnCloseSpin");
+    btnNew.disabled = table.status === "betting" || table.status === "spinning";
+    btnClose.disabled = table.status !== "betting";
   }
   lastStatus = table.status;
 });

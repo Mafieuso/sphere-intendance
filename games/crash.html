@@ -144,29 +144,43 @@ document.getElementById("btnNewRound").addEventListener("click", async () => {
   toast(opened ? "Nouvelle manche ouverte — placez vos mises." : "Une manche est déjà en cours.", opened ? "success" : "warn");
 });
 
-document.getElementById("btnLaunch").addEventListener("click", async () => {
+document.getElementById("btnLaunch").addEventListener("click", async (e) => {
+  e.target.disabled = true;
   const snap = await getDoc(tableRef);
   const t = snap.data();
   if(!t || t.status !== "waiting") return;
   await setDoc(tableRef, { ...t, status: "running", startedAt: serverTimestamp(), updatedAt: serverTimestamp() });
 });
 
+let joiningCrash = false;
 document.getElementById("btnJoin").addEventListener("click", async () => {
+  if(joiningCrash) return;
   if(!currentTable || currentTable.status !== "waiting") return toast("Attends l'ouverture des mises.", "warn");
   const amount = parseInt(document.getElementById("betAmount").value, 10);
   if(!amount || amount <= 0) return toast("Mise invalide.", "warn");
-  const card = await getCard(session.id);
-  if(isExpired(card)) return toast("Carte expirée.", "error");
-  if(card.balance < amount) return toast("Solde insuffisant.", "warn");
+  if(myBetId) return toast("Tu as déjà misé sur cette manche.", "warn");
+  joiningCrash = true;
+  const btnJoin = document.getElementById("btnJoin");
+  btnJoin.disabled = true;
+  try{
+    const card = await getCard(session.id);
+    if(isExpired(card)) return toast("Carte expirée.", "error");
+    if(card.balance < amount) return toast("Solde insuffisant.", "warn");
 
-  await adjustBalance({ cardId: session.id, amount: -amount, type: "mise", gameId: "crash", note: `Mise ${amount} jeton(s) — Ascension Fulgurante` });
-  const ref = await addDoc(collection(db, "tables", TABLE_ID, "bets"), {
-    roundId: currentTable.roundId, cardId: session.id, steamId: session.steamId, playerName: session.playerName,
-    amount, cashedOut: false, cashOutMultiplier: null, createdAt: serverTimestamp()
-  });
-  myBetId = ref.id; myCashedOut = false;
-  toast("Mise engagée pour la prochaine ascension.", "success");
-  refreshBalance();
+    await adjustBalance({ cardId: session.id, amount: -amount, type: "mise", gameId: "crash", note: `Mise ${amount} jeton(s) — Ascension Fulgurante` });
+    const ref = await addDoc(collection(db, "tables", TABLE_ID, "bets"), {
+      roundId: currentTable.roundId, cardId: session.id, steamId: session.steamId, playerName: session.playerName,
+      amount, cashedOut: false, cashOutMultiplier: null, createdAt: serverTimestamp()
+    });
+    myBetId = ref.id; myCashedOut = false;
+    toast("Mise engagée pour la prochaine ascension.", "success");
+    refreshBalance();
+  }catch(e){
+    toast(e.message, "error");
+  }finally{
+    joiningCrash = false;
+    btnJoin.disabled = false;
+  }
 });
 
 document.getElementById("btnCashout").addEventListener("click", async () => {
@@ -254,7 +268,7 @@ onSnapshot(tableRef, (snap) => {
     document.getElementById("crashMult").classList.remove("crashed","cashed");
     document.getElementById("rocket").style.display = "none";
     statusLine.textContent = "Mises ouvertes — en attente du décollage";
-    btnNew.style.display = "none"; btnLaunch.style.display = "inline-flex"; btnCashout.style.display = "none"; btnJoin.disabled = false;
+    btnNew.style.display = "none"; btnLaunch.style.display = "inline-flex"; btnLaunch.disabled = false; btnCashout.style.display = "none"; btnJoin.disabled = false;
   }
   if(t.status === "running"){
     statusLine.textContent = "En vol… encaisse avant le crash !";

@@ -159,14 +159,17 @@ async function ensureTable(){
 }
 ensureTable();
 
-document.getElementById("btnNewRound")?.addEventListener("click", async () => {
+document.getElementById("btnNewRound")?.addEventListener("click", async (e) => {
+  e.target.disabled = true;
   const snap = await getDoc(tableRef);
   const t = snap.data() || { roundId: 0 };
   await setDoc(tableRef, { status:"betting", roundId:(t.roundId||0)+1, dealerHand:[], hideSecond:true, croupierName: staff.name, updatedAt: serverTimestamp() });
   toast("Nouvelle manche — les joueurs peuvent rejoindre.", "success");
 });
 
-document.getElementById("btnDeal")?.addEventListener("click", async () => {
+document.getElementById("btnDeal")?.addEventListener("click", async (e) => {
+  e.target.disabled = true;
+  try{
   const snap = await getDoc(tableRef);
   const t = snap.data();
   if(!t || t.status !== "betting") return toast("Ouvre d'abord les mises.", "warn");
@@ -177,12 +180,14 @@ document.getElementById("btnDeal")?.addEventListener("click", async () => {
   }
   await setDoc(tableRef, { ...t, status:"playing", dealerHand:[randomCard(), randomCard()], hideSecond:true, updatedAt: serverTimestamp() });
   toast("Cartes distribuées.", "success");
+  }finally{ e.target.disabled = false; }
 });
 
-document.getElementById("btnReveal")?.addEventListener("click", async () => {
+document.getElementById("btnReveal")?.addEventListener("click", async (e) => {
+  e.target.disabled = true;
   const snap = await getDoc(tableRef);
   const t = snap.data();
-  if(!t || t.status !== "playing") return toast("La manche n'est pas en cours.", "warn");
+  if(!t || t.status !== "playing"){ toast("La manche n'est pas en cours.", "warn"); e.target.disabled = false; return; }
   let dealerHand = [...t.dealerHand];
   while(handTotal(dealerHand) < 17) dealerHand.push(randomCard());
   const dealerTotal = handTotal(dealerHand);
@@ -211,29 +216,48 @@ document.getElementById("btnReveal")?.addEventListener("click", async () => {
   toast("Manche résolue.", "success");
 });
 
+let joining = false;
 document.getElementById("btnJoin")?.addEventListener("click", async () => {
-  const snap = await getDoc(tableRef);
-  const t = snap.data();
-  if(!t || t.status !== "betting") return toast("Les mises ne sont pas ouvertes.", "warn");
+  if(joining) return;
   const amount = parseInt(document.getElementById("betAmount").value, 10);
   if(!amount || amount <= 0) return toast("Mise invalide.", "warn");
-  const card = await getCard(player.id);
-  if(isExpired(card)) return toast("Carte expirée.", "error");
-  if(card.balance < amount) return toast("Solde insuffisant.", "warn");
+  joining = true;
+  const btnJoin = document.getElementById("btnJoin");
+  btnJoin.disabled = true;
+  try{
+    const snap = await getDoc(tableRef);
+    const t = snap.data();
+    if(!t || t.status !== "betting") return toast("Les mises ne sont pas ouvertes.", "warn");
+    const card = await getCard(player.id);
+    if(isExpired(card)) return toast("Carte expirée.", "error");
+    if(card.balance < amount) return toast("Solde insuffisant.", "warn");
 
-  const existing = await getDocs(query(seatsCol, where("roundId","==",t.roundId), where("cardId","==",player.id)));
-  if(!existing.empty) return toast("Tu es déjà à la table pour cette manche.", "warn");
+    const existing = await getDocs(query(seatsCol, where("roundId","==",t.roundId), where("cardId","==",player.id)));
+    if(!existing.empty) return toast("Tu es déjà à la table pour cette manche.", "warn");
 
-  await adjustBalance({ cardId: player.id, amount: -amount, type: "mise", gameId: "blackjack", note: `Mise ${amount} jeton(s) au Blackjack` });
-  await addDoc(seatsCol, { roundId: t.roundId, cardId: player.id, steamId: player.steamId, playerName: player.playerName, bet: amount, hand: [], status: "waiting" });
-  toast("Place à la table réservée.", "success");
-  refreshBalance();
+    await adjustBalance({ cardId: player.id, amount: -amount, type: "mise", gameId: "blackjack", note: `Mise ${amount} jeton(s) au Blackjack` });
+    await addDoc(seatsCol, { roundId: t.roundId, cardId: player.id, steamId: player.steamId, playerName: player.playerName, bet: amount, hand: [], status: "waiting" });
+    toast("Place à la table réservée.", "success");
+    refreshBalance();
+  }catch(e){
+    toast(e.message, "error");
+  }finally{
+    joining = false;
+    btnJoin.disabled = false;
+  }
 });
 
+let acting = false;
 document.getElementById("btnHit")?.addEventListener("click", () => actOnHand("hit"));
 document.getElementById("btnStand")?.addEventListener("click", () => actOnHand("stand"));
 
 async function actOnHand(action){
+  if(acting) return;
+  acting = true;
+  const btnHit = document.getElementById("btnHit");
+  const btnStand = document.getElementById("btnStand");
+  btnHit.disabled = true; btnStand.disabled = true;
+  try{
   const snap = await getDoc(tableRef);
   const t = snap.data();
   if(!t || t.status !== "playing") return;
@@ -252,6 +276,12 @@ async function actOnHand(action){
     await updateDoc(doc(seatsCol, seatDoc.id), { status: "stand" });
     toast("Tu restes sur ta main.", "info");
   }
+  }catch(e){
+    toast(e.message, "error");
+  }finally{
+    acting = false;
+    btnHit.disabled = false; btnStand.disabled = false;
+  }
 }
 
 let currentTable = null;
@@ -266,6 +296,14 @@ onSnapshot(tableRef, (snap) => {
   const actionRow = document.getElementById("actionRow");
   if(joinRow) joinRow.style.display = t.status === "betting" ? "flex" : "none";
   if(actionRow) actionRow.style.display = t.status === "playing" ? "flex" : "none";
+  if(isCroupier){
+    const btnNew = document.getElementById("btnNewRound");
+    const btnDeal = document.getElementById("btnDeal");
+    const btnReveal = document.getElementById("btnReveal");
+    if(btnNew) btnNew.disabled = t.status === "betting" || t.status === "playing";
+    if(btnDeal) btnDeal.disabled = t.status !== "betting";
+    if(btnReveal) btnReveal.disabled = t.status !== "playing";
+  }
   renderSeats();
 });
 onSnapshot(seatsCol, () => renderSeats());

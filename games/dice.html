@@ -129,11 +129,15 @@ document.getElementById("btnPlay").addEventListener("click", async () => {
   const bet = parseInt(betInput.value, 10);
   if(!choice) return toast("Choisis un chiffre de 1 à 6.", "warn");
   if(!bet || bet <= 0) return toast("Mise invalide.", "warn");
-  const card = await getCard(session.id);
-  if(isExpired(card)) return toast("Carte expirée — repasse à la caisse.", "error");
-  if(card.balance < bet) return toast("Solde de jetons insuffisant.", "warn");
 
   playing = true;
+  const btnPlay = document.getElementById("btnPlay");
+  btnPlay.disabled = true;
+
+  const card = await getCard(session.id);
+  if(isExpired(card)){ toast("Carte expirée — repasse à la caisse.", "error"); playing = false; btnPlay.disabled = false; return; }
+  if(card.balance < bet){ toast("Solde de jetons insuffisant.", "warn"); playing = false; btnPlay.disabled = false; return; }
+
   const banner = document.getElementById("resultBanner");
   banner.className = "result-banner";
   const die = document.getElementById("die");
@@ -173,6 +177,7 @@ document.getElementById("btnPlay").addEventListener("click", async () => {
       }
     }catch(e){ toast(e.message, "error"); }
     playing = false;
+    btnPlay.disabled = false;
   }, 800);
 });
 </script>
