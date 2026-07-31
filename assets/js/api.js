@@ -10,21 +10,33 @@ export function setToken(token){ localStorage.setItem(TOKEN_KEY, token); }
 export function clearToken(){ localStorage.removeItem(TOKEN_KEY); }
 
 let socket = null;
+let ready = null; // se résout une fois connecté ET (si un token existe) authentifié
+let resolveReady = null;
 const reconnectCallbacks = [];
+
+function armReady(){
+  ready = new Promise((resolve) => { resolveReady = resolve; });
+}
 
 export function getSocket(){
   if(socket) return socket;
   socket = io({ autoConnect: true });
+  armReady();
   let first = true;
   socket.on("connect", () => {
     const token = getToken();
     const afterAuth = () => {
+      resolveReady();
       if(first){ first = false; return; }
       reconnectCallbacks.forEach(cb => { try{ cb(); }catch(e){ console.error(e); } });
     };
     if(token) socket.emit("auth:token", token, afterAuth);
     else afterAuth();
   });
+  /* Une déconnexion invalide l'authentification de cette socket — toute
+     requête émise pendant la coupure doit attendre la prochaine connexion
+     et son "auth:token", pas partir immédiatement vers un socket mort. */
+  socket.on("disconnect", armReady);
   return socket;
 }
 
@@ -36,14 +48,19 @@ export function onReconnect(callback){
   reconnectCallbacks.push(callback);
 }
 
-/* Émission avec accusé de réception, sous forme de promesse. */
+/* Émission avec accusé de réception, sous forme de promesse. Attend que la
+   connexion soit prête (et authentifiée) avant d'émettre, pour ne jamais
+   arriver au serveur avant "auth:token" — sinon un appel authentifié fait
+   dès le chargement de la page (avant même que la socket soit connectée)
+   partirait trop tôt et se ferait rejeter comme non-authentifié. */
 export function request(event, payload = {}){
-  return new Promise((resolve, reject) => {
-    getSocket().emit(event, payload, (res) => {
+  getSocket();
+  return ready.then(() => new Promise((resolve, reject) => {
+    socket.emit(event, payload, (res) => {
       if(res && res.ok === false) reject(new Error(res.error || "Erreur serveur."));
       else resolve(res);
     });
-  });
+  }));
 }
 
 export function on(event, handler){ getSocket().on(event, handler); }
