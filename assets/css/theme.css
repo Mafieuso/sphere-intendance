@@ -317,17 +317,23 @@ a{color:inherit;text-decoration:none;}
 
 /* Cagnotte du Jackpot — badge flottant visible sur toutes les pages de jeu,
    pour que sa progression se voie partout, peu importe la table. */
-.jackpot-widget{position:fixed;top:14px;right:14px;z-index:500;
-  background:linear-gradient(135deg,rgba(26,19,5,.94),rgba(10,7,2,.94));
-  border:1px solid var(--gold2);border-radius:12px;padding:10px 16px;text-align:center;
-  box-shadow:0 8px 24px rgba(0,0,0,.5);backdrop-filter:blur(6px);min-width:130px;}
-.jackpot-label{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:2px;color:var(--gold);text-transform:uppercase;}
-.jackpot-amount{font-family:'Cinzel',serif;font-size:1.05rem;font-weight:900;color:var(--gold2);margin:2px 0;
-  text-shadow:0 0 16px rgba(240,208,96,.35);}
-.jackpot-yen{font-size:.55rem;color:var(--text-muted);margin-bottom:6px;}
-.jackpot-widget.pulse{animation:jackpotPulse .5s ease;}
-@keyframes jackpotPulse{0%{transform:scale(1)}40%{transform:scale(1.07)}100%{transform:scale(1)}}
-@media(max-width:640px){.jackpot-widget{position:static;margin:0 auto 16px;width:fit-content;}}
+.jackpot-widget{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:500;
+  background:linear-gradient(135deg,#3a0508,#7a0e14,#c9a227,#7a0e14,#3a0508);
+  background-size:220% auto;animation:jackpotShimmer 3.5s linear infinite;
+  border:2px solid var(--gold2);border-radius:14px;padding:9px 30px;text-align:center;
+  box-shadow:0 10px 34px rgba(0,0,0,.65),0 0 30px rgba(201,162,39,.3);min-width:230px;}
+@keyframes jackpotShimmer{0%{background-position:0% center}100%{background-position:220% center}}
+.jackpot-label{font-family:'Cinzel Decorative',serif;font-size:.8rem;letter-spacing:3px;color:#fff;
+  text-transform:uppercase;text-shadow:0 2px 5px rgba(0,0,0,.6);}
+.jackpot-amount{font-family:'Cinzel',serif;font-size:1.7rem;font-weight:900;color:#fff;margin:2px 0;
+  text-shadow:0 0 22px rgba(255,255,255,.65),0 2px 5px rgba(0,0,0,.7);}
+.jackpot-yen{font-size:.64rem;color:rgba(255,255,255,.85);margin-bottom:8px;}
+.jackpot-widget .btn{width:100%;}
+.jackpot-widget.pulse{animation:jackpotShimmer 3.5s linear infinite,jackpotPulse .5s ease;}
+@keyframes jackpotPulse{0%{transform:translateX(-50%) scale(1)}40%{transform:translateX(-50%) scale(1.08)}100%{transform:translateX(-50%) scale(1)}}
+@media(max-width:640px){.jackpot-widget{position:static;transform:none;margin:0 auto 16px;width:fit-content;}
+  .jackpot-widget.pulse{animation:jackpotShimmer 3.5s linear infinite,jackpotPulseMobile .5s ease;}
+  @keyframes jackpotPulseMobile{0%{transform:scale(1)}40%{transform:scale(1.08)}100%{transform:scale(1)}}}
 
 @media(prefers-reduced-motion:reduce){
   .page-title::before,.stat-icon,.chip-icon,.stat-val,#sidebar,#topbar,.badge::after,.toast,.btn-solid,.sidebar-ornament{animation:none!important;}
