@@ -61,6 +61,19 @@ export function registerAuditHandlers(io, socket){
   });
   socket.on("audit:unsubscribe", () => socket.leave("audit"));
 
+  /* Vide le journal d'audit — utile en fin de soirée pour repartir léger.
+     N'efface jamais les transactions (l'historique financier des cartes
+     reste intact), seulement le journal d'actions lui-même. */
+  socket.on("logs:clear", async (_payload, cb) => {
+    try{
+      if(!isAdmin(socket.session)) return cb?.({ ok: false, error: "Réservé à l'Intendance." });
+      const db = await getDb();
+      await db.collection("logs").deleteMany({});
+      if(ioRef) ioRef.to("audit").emit("audit:cleared");
+      cb?.({ ok: true });
+    }catch(e){ cb?.({ ok: false, error: e.message }); }
+  });
+
   socket.on("leaderboard:subscribe", async (_payload, cb) => {
     socket.join("leaderboard");
     try{

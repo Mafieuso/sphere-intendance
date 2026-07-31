@@ -5,7 +5,7 @@
    jamais chevaucher le titre, le solde ou le lien retour. */
 import { request, on, onReconnect } from "./api.js";
 import { toast } from "./toast.js";
-import { formatYen, tokensToYen } from "./economy.js";
+import { yenToTokens } from "./economy.js";
 import { countUp, jackpotBurst } from "./uiFx.js";
 
 export function mountJackpotWidget({ canSubscribe = false } = {}){
@@ -15,8 +15,8 @@ export function mountJackpotWidget({ canSubscribe = false } = {}){
   el.className = "jackpot-widget";
   el.innerHTML = `
     <div class="jackpot-label">🎰 Jackpot</div>
-    <div class="jackpot-amount"><span id="jackpotPoolNum">0</span> 🪙</div>
-    <div class="jackpot-yen" id="jackpotYen">≈ 0 ¥</div>
+    <div class="jackpot-amount"><span id="jackpotPoolNum">0</span> ¥</div>
+    <div class="jackpot-yen" id="jackpotYen">≈ 0 🪙</div>
     ${canSubscribe ? `<button class="btn btn-gold btn-sm" id="jackpotSubBtn">S'inscrire (10 🪙)</button>` : ''}
   `;
   document.body.prepend(el);
@@ -26,11 +26,11 @@ export function mountJackpotWidget({ canSubscribe = false } = {}){
   new ResizeObserver(applySpacing).observe(el);
 
   let lastPool = 0;
-  function renderPool(pool, animate){
+  function renderPool(poolYen, animate){
     const numEl = document.getElementById("jackpotPoolNum");
-    if(numEl){ animate ? countUp(numEl, lastPool, pool) : (numEl.textContent = pool.toLocaleString('fr-FR')); }
-    document.getElementById("jackpotYen").textContent = `≈ ${formatYen(tokensToYen(pool))}`;
-    lastPool = pool;
+    if(numEl){ animate ? countUp(numEl, lastPool, poolYen) : (numEl.textContent = poolYen.toLocaleString('fr-FR')); }
+    document.getElementById("jackpotYen").textContent = `≈ ${yenToTokens(poolYen).toLocaleString('fr-FR')} 🪙`;
+    lastPool = poolYen;
   }
   function renderSubscribed(subscribed){
     if(!canSubscribe) return;
@@ -41,7 +41,7 @@ export function mountJackpotWidget({ canSubscribe = false } = {}){
   }
 
   on("jackpot:state", (state) => {
-    renderPool(state.pool, true);
+    renderPool(state.poolYen, true);
     el.classList.remove('pulse'); void el.offsetWidth; el.classList.add('pulse');
   });
   on("jackpot:won", ({ playerName, payout }) => {
@@ -52,7 +52,7 @@ export function mountJackpotWidget({ canSubscribe = false } = {}){
 
   function join(){
     request("jackpot:join").then(res => {
-      renderPool(res.state.pool, false);
+      renderPool(res.state.poolYen, false);
       renderSubscribed(res.state.subscribed);
     }).catch(() => {});
   }

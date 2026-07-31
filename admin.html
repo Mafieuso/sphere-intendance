@@ -66,16 +66,22 @@
       <div class="panel-title">🎰 Jackpot Progressif</div>
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;">
         <div>
-          <div style="font-family:'Cinzel',serif;font-size:1.3rem;color:var(--gold2);" id="jackpotAdminPool">0 🪙</div>
+          <div style="font-family:'Cinzel',serif;font-size:1.3rem;color:var(--gold2);" id="jackpotAdminPool">0 ¥</div>
           <div style="font-size:.65rem;color:var(--text-muted);" id="jackpotAdminEntrants">0 inscrit(s)</div>
         </div>
-        <button class="btn btn-gold" id="btnDrawJackpot">🎰 Lancer le Jackpot</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-gold" id="btnDrawJackpot">🎰 Lancer le Jackpot</button>
+          <button class="btn btn-ghost btn-sm" id="btnResetJackpot">Réinitialiser sans tirage</button>
+        </div>
       </div>
     </div>
 
     <div class="admin-grid">
       <div class="panel">
-        <div class="panel-title">📜 Journal d'Audit — Temps Réel</div>
+        <div class="panel-title" style="display:flex;align-items:center;justify-content:space-between;">
+          <span>📜 Journal d'Audit — Temps Réel</span>
+          <button class="btn btn-ghost btn-sm" id="btnClearAudit" style="font-size:.56rem;">🗑 Vider</button>
+        </div>
         <div id="auditLog"><div class="loader"></div></div>
       </div>
 
@@ -124,6 +130,36 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="modalResetJackpot">
+  <div class="modal-box" style="max-width:440px;">
+    <div class="modal-title" style="color:#ffb74d;">🔸 Réinitialiser le Jackpot sans tirage ?</div>
+    <p style="font-size:.85rem;color:var(--text-muted);line-height:1.6;">
+      Aucun gagnant ne sera tiré. Chaque inscrit sera remboursé de son inscription
+      (10 jetons), puis la cagnotte repart à zéro. À utiliser en fin de soirée si le
+      tirage n'a pas eu lieu. Cette action est irréversible.
+    </p>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="document.getElementById('modalResetJackpot').classList.remove('open')">Annuler</button>
+      <button class="btn btn-gold" id="btnConfirmResetJackpot">Réinitialiser</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalClearAudit">
+  <div class="modal-box" style="max-width:440px;">
+    <div class="modal-title" style="color:#ffb74d;">🔸 Vider le journal d'audit ?</div>
+    <p style="font-size:.85rem;color:var(--text-muted);line-height:1.6;">
+      Le journal d'actions sera entièrement effacé, pour repartir léger.
+      L'historique financier des cartes (transactions) n'est pas touché.
+      Cette action est irréversible.
+    </p>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="document.getElementById('modalClearAudit').classList.remove('open')">Annuler</button>
+      <button class="btn btn-crimson" id="btnConfirmClearAudit">Vider le journal</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modalDeleteCard">
   <div class="modal-box" style="max-width:440px;">
     <div class="modal-title" style="color:#ff8a8a;">🗑 Supprimer cette carte ?</div>
@@ -158,7 +194,7 @@ import { initUiFx, animateCounters } from "./assets/js/uiFx.js";
 import { toast } from "./assets/js/toast.js";
 import { requireRole, renderStaffBadge, roleLabel, resetStaffPin, createStaff, listStaff } from "./assets/js/session.js";
 import { isExpired, deleteCard, isSuspended, setCardSuspended } from "./assets/js/cards.js";
-import { tokenDisplayHTML, formatYen, tokensToYen } from "./assets/js/economy.js";
+import { tokenDisplayHTML, formatYen, tokensToYen, yenToTokens } from "./assets/js/economy.js";
 import { request, on } from "./assets/js/api.js";
 
 initFx();
@@ -168,7 +204,7 @@ if(staff){ renderStaffBadge(); }
 
 /* ── Jackpot ── */
 function renderJackpotAdmin(state){
-  document.getElementById("jackpotAdminPool").textContent = `${state.pool.toLocaleString('fr-FR')} 🪙`;
+  document.getElementById("jackpotAdminPool").textContent = `${state.poolYen.toLocaleString('fr-FR')} ¥ (≈ ${yenToTokens(state.poolYen).toLocaleString('fr-FR')} 🪙)`;
   document.getElementById("jackpotAdminEntrants").textContent = `${state.entrantCount} inscrit(s)`;
 }
 on("jackpot:state", renderJackpotAdmin);
@@ -191,6 +227,23 @@ document.getElementById("btnConfirmDrawJackpot").addEventListener("click", async
   }
 });
 
+document.getElementById("btnResetJackpot").addEventListener("click", () => {
+  document.getElementById("modalResetJackpot").classList.add("open");
+});
+document.getElementById("btnConfirmResetJackpot").addEventListener("click", async () => {
+  const btn = document.getElementById("btnConfirmResetJackpot");
+  btn.disabled = true;
+  try{
+    const res = await request("jackpot:reset");
+    document.getElementById("modalResetJackpot").classList.remove("open");
+    toast(`Jackpot réinitialisé — ${res.refunded} inscrit(s) remboursé(s).`, "success");
+  }catch(err){
+    toast(err.message, "error");
+  }finally{
+    btn.disabled = false;
+  }
+});
+
 /* ── Journal d'audit live ── */
 function renderAuditLog(logs){
   const el = document.getElementById("auditLog");
@@ -206,7 +259,25 @@ function renderAuditLog(logs){
 }
 let auditLogs = [];
 on("audit:entry", (entry) => { auditLogs = [entry, ...auditLogs].slice(0, 40); renderAuditLog(auditLogs); });
+on("audit:cleared", () => { auditLogs = []; renderAuditLog(auditLogs); });
 request("audit:subscribe").then(res => { auditLogs = res.logs; renderAuditLog(auditLogs); });
+
+document.getElementById("btnClearAudit").addEventListener("click", () => {
+  document.getElementById("modalClearAudit").classList.add("open");
+});
+document.getElementById("btnConfirmClearAudit").addEventListener("click", async () => {
+  const btn = document.getElementById("btnConfirmClearAudit");
+  btn.disabled = true;
+  try{
+    await request("logs:clear");
+    document.getElementById("modalClearAudit").classList.remove("open");
+    toast("Journal d'audit vidé.", "success");
+  }catch(err){
+    toast(err.message, "error");
+  }finally{
+    btn.disabled = false;
+  }
+});
 
 /* ── Staff ── */
 let staffById = {};

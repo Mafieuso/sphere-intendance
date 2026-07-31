@@ -1,16 +1,26 @@
 /* Cagnotte progressive partagée entre tous les jeux. Alimentée par un petit
-   prélèvement (3%) sur chaque mise posée n'importe où sur le site, plus les
+   prélèvement sur chaque mise posée n'importe où sur le site, plus les
    inscriptions à 10 jetons. Le tirage est manuel (réservé à l'Intendance) —
-   pas de tirage automatique. Le prélèvement n'est qu'une écriture comptable
-   (le jeton a déjà rejoint le profit du casino via la mise normale) : au
-   tirage, la récompense est plafonnée au profit courant du casino, pour ne
-   jamais nous faire passer en négatif. */
+   pas de tirage automatique.
+
+   Pour ne jamais risquer de mettre l'Intendance à perte : sur toute somme
+   destinée au Jackpot (prélèvement de jeu ou inscription), seule une part
+   (POOL_SHARE) rejoint réellement la cagnotte distribuable — le reste
+   reste acquis au profit normal du casino, sans jamais transiter par une
+   transaction séparée (il en fait déjà partie via la mise normale). La
+   cagnotte est comptée en Yens (pas en jetons) pour que ce prélèvement
+   reste précis même sur de petites mises, et pour qu'elle progresse de
+   façon visible et régulière plutôt que par à-coups arrondis à zéro.
+   Au tirage, la récompense est en plus plafonnée au profit courant du
+   casino, en toute dernière protection. */
 import { getDb } from "../db.js";
 import { adjustBalance, isExpired, isSuspended, casinoProfitTokens } from "./cards.js";
 import { isAdmin, isPlayer } from "../auth.js";
+import { tokensToYen, yenToTokens } from "../../assets/js/economy.js";
 
-const RAKE_RATE = 0.03;
-const ENTRY_COST = 10;
+const RAKE_RATE = 0.03;      // part symbolique de chaque mise "fléchée" vers le Jackpot
+const POOL_SHARE = 0.25;     // part de cette somme qui rejoint vraiment la cagnotte — le reste reste profit
+const ENTRY_COST = 10;       // coût d'inscription, en jetons (inchangé, bien réel)
 const JACKPOT_ID = "current";
 
 let ioRef = null;
@@ -19,11 +29,11 @@ export function initJackpot(io){ ioRef = io; }
 async function getJackpotDoc(){
   const db = await getDb();
   const doc = await db.collection("jackpot").findOne({ _id: JACKPOT_ID });
-  return doc || { _id: JACKPOT_ID, pool: 0, entrants: [] };
+  return doc || { _id: JACKPOT_ID, poolYen: 0, entrants: [] };
 }
 
 function publicState(doc){
-  return { pool: doc.pool || 0, entrantCount: (doc.entrants || []).length };
+  return { poolYen: doc.poolYen || 0, entrantCount: (doc.entrants || []).length };
 }
 
 async function broadcastJackpot(){
@@ -36,11 +46,12 @@ async function broadcastJackpot(){
    est proportionnel à l'argent qui circule, pas au résultat. */
 export async function addRake(betAmount){
   try{
-    const rake = Math.floor(betAmount * RAKE_RATE);
-    if(rake <= 0) return;
+    const flaggedYen = tokensToYen(betAmount) * RAKE_RATE;
+    const poolYen = Math.floor(flaggedYen * POOL_SHARE);
+    if(poolYen <= 0) return;
     const db = await getDb();
     await db.collection("jackpot").updateOne(
-      { _id: JACKPOT_ID }, { $inc: { pool: rake }, $setOnInsert: { entrants: [] } }, { upsert: true }
+      { _id: JACKPOT_ID }, { $inc: { poolYen }, $setOnInsert: { entrants: [] } }, { upsert: true }
     );
     broadcastJackpot();
   }catch(e){ console.error("addRake a échoué :", e); }
@@ -76,9 +87,10 @@ export function registerJackpotHandlers(io, socket){
         cardId, amount: -ENTRY_COST, type: "mise", gameId: "jackpot",
         note: `Inscription au Jackpot (${ENTRY_COST} jetons)`
       });
+      const poolYen = Math.floor(tokensToYen(ENTRY_COST) * POOL_SHARE);
       await db.collection("jackpot").updateOne(
         { _id: JACKPOT_ID },
-        { $inc: { pool: ENTRY_COST }, $push: { entrants: { cardId, playerName: socket.session.playerName } } },
+        { $inc: { poolYen }, $push: { entrants: { cardId, playerName: socket.session.playerName } } },
         { upsert: true }
       );
       broadcastJackpot();
@@ -94,8 +106,8 @@ export function registerJackpotHandlers(io, socket){
       if(!entrants.length) return cb?.({ ok: false, error: "Personne n'est inscrit au Jackpot." });
 
       const winner = entrants[Math.floor(Math.random() * entrants.length)];
-      const profit = await casinoProfitTokens();
-      const payout = Math.max(0, Math.min(doc.pool || 0, profit));
+      const profitTokens = await casinoProfitTokens();
+      const payout = Math.max(0, Math.min(yenToTokens(doc.poolYen || 0), profitTokens));
 
       if(payout > 0){
         await adjustBalance({
@@ -106,7 +118,7 @@ export function registerJackpotHandlers(io, socket){
 
       const db = await getDb();
       await db.collection("jackpot").updateOne(
-        { _id: JACKPOT_ID }, { $set: { pool: 0, entrants: [] } }, { upsert: true }
+        { _id: JACKPOT_ID }, { $set: { poolYen: 0, entrants: [] } }, { upsert: true }
       );
 
       if(ioRef){
@@ -114,6 +126,32 @@ export function registerJackpotHandlers(io, socket){
       }
       broadcastJackpot();
       cb?.({ ok: true, winner: winner.playerName, payout });
+    }catch(e){ cb?.({ ok: false, error: e.message }); }
+  });
+
+  /* Réinitialise sans tirer de gagnant — pour clôturer une soirée sans
+     laisser une cagnotte traîner. Rembourse chaque inscrit (annule
+     complètement leur inscription, comme si elle n'avait jamais eu lieu),
+     plutôt que de garder leur mise sans contrepartie. */
+  socket.on("jackpot:reset", async (_payload, cb) => {
+    try{
+      if(!isAdmin(socket.session)) return cb?.({ ok: false, error: "Réservé à l'Intendance." });
+      const doc = await getJackpotDoc();
+      const entrants = doc.entrants || [];
+      for(const entrant of entrants){
+        try{
+          await adjustBalance({
+            cardId: entrant.cardId, amount: ENTRY_COST, type: "gain", gameId: "jackpot",
+            note: "Jackpot annulé — inscription remboursée"
+          });
+        }catch(e){ console.error("Remboursement Jackpot échoué pour", entrant.cardId, ":", e); }
+      }
+      const db = await getDb();
+      await db.collection("jackpot").updateOne(
+        { _id: JACKPOT_ID }, { $set: { poolYen: 0, entrants: [] } }, { upsert: true }
+      );
+      broadcastJackpot();
+      cb?.({ ok: true, refunded: entrants.length });
     }catch(e){ cb?.({ ok: false, error: e.message }); }
   });
 }
