@@ -1,5 +1,6 @@
 import { isPlayer } from "../../auth.js";
 import { adjustBalance, isExpired, isSuspended } from "../cards.js";
+import { addRake } from "../jackpot.js";
 import { getDb } from "../../db.js";
 
 export function registerCoinflipHandlers(io, socket){
@@ -18,6 +19,7 @@ export function registerCoinflipHandlers(io, socket){
       if(isSuspended(card)) return cb?.({ ok: false, error: "Carte suspendue — contacte l'Hôte." });
       if((card.balance || 0) < amount) return cb?.({ ok: false, error: "Solde de jetons insuffisant." });
 
+      addRake(amount);
       const outcome = Math.random() < 0.5 ? "pile" : "face";
       const win = outcome === choice;
       const net = win ? Math.round(amount * 0.5) : -amount;

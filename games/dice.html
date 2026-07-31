@@ -101,9 +101,11 @@ import { requirePlayerCard } from "../assets/js/playerSession.js";
 import { getCard } from "../assets/js/cards.js";
 import { request } from "../assets/js/api.js";
 import { tokenDisplayHTML, formatYen, tokensToYen } from "../assets/js/economy.js";
+import { mountJackpotWidget } from "../assets/js/jackpot.js";
 
 initFx();
 initUiFx();
+mountJackpotWidget({ canSubscribe: true });
 const session = requirePlayerCard();
 let choice = null;
 let playing = false;

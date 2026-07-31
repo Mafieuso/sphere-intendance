@@ -62,6 +62,17 @@
       <div class="stat-card" style="--sc:#b3121a"><div class="stat-icon">⚔</div><div class="stat-val" id="statStaff">0</div><div class="stat-label">Membres du Staff</div></div>
     </div>
 
+    <div class="panel" style="margin-bottom:20px;">
+      <div class="panel-title">🎰 Jackpot Progressif</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;">
+        <div>
+          <div style="font-family:'Cinzel',serif;font-size:1.3rem;color:var(--gold2);" id="jackpotAdminPool">0 🪙</div>
+          <div style="font-size:.65rem;color:var(--text-muted);" id="jackpotAdminEntrants">0 inscrit(s)</div>
+        </div>
+        <button class="btn btn-gold" id="btnDrawJackpot">🎰 Lancer le Jackpot</button>
+      </div>
+    </div>
+
     <div class="admin-grid">
       <div class="panel">
         <div class="panel-title">📜 Journal d'Audit — Temps Réel</div>
@@ -97,6 +108,20 @@
     </div>
 
   </main>
+</div>
+
+<div class="modal-overlay" id="modalDrawJackpot">
+  <div class="modal-box" style="max-width:440px;">
+    <div class="modal-title" style="color:var(--gold2);">🎰 Lancer le Jackpot ?</div>
+    <p style="font-size:.85rem;color:var(--text-muted);line-height:1.6;">
+      Un gagnant sera tiré au sort parmi les inscrits et remportera la cagnotte actuelle
+      (plafonnée au profit du casino). La cagnotte repart ensuite à zéro. Cette action est irréversible.
+    </p>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="document.getElementById('modalDrawJackpot').classList.remove('open')">Annuler</button>
+      <button class="btn btn-gold" id="btnConfirmDrawJackpot">Lancer le tirage</button>
+    </div>
+  </div>
 </div>
 
 <div class="modal-overlay" id="modalDeleteCard">
@@ -140,6 +165,31 @@ initFx();
 initUiFx();
 const staff = requireRole(["admin"]);
 if(staff){ renderStaffBadge(); }
+
+/* ── Jackpot ── */
+function renderJackpotAdmin(state){
+  document.getElementById("jackpotAdminPool").textContent = `${state.pool.toLocaleString('fr-FR')} 🪙`;
+  document.getElementById("jackpotAdminEntrants").textContent = `${state.entrantCount} inscrit(s)`;
+}
+on("jackpot:state", renderJackpotAdmin);
+request("jackpot:join").then(res => renderJackpotAdmin(res.state));
+
+document.getElementById("btnDrawJackpot").addEventListener("click", () => {
+  document.getElementById("modalDrawJackpot").classList.add("open");
+});
+document.getElementById("btnConfirmDrawJackpot").addEventListener("click", async () => {
+  const btn = document.getElementById("btnConfirmDrawJackpot");
+  btn.disabled = true;
+  try{
+    const res = await request("jackpot:draw");
+    document.getElementById("modalDrawJackpot").classList.remove("open");
+    toast(`🎰 ${res.winner} remporte le Jackpot ! +${res.payout} 🪙`, "success");
+  }catch(err){
+    toast(err.message, "error");
+  }finally{
+    btn.disabled = false;
+  }
+});
 
 /* ── Journal d'audit live ── */
 function renderAuditLog(logs){

@@ -6,6 +6,7 @@
    côté serveur au moment de la demande, jamais contre une valeur du client. */
 import { isCroupierOrAdmin, isPlayer } from "../../auth.js";
 import { adjustBalance, isExpired, isSuspended } from "../cards.js";
+import { addRake } from "../jackpot.js";
 import { getDb } from "../../db.js";
 
 const TABLE_ID = "crash-1";
@@ -103,6 +104,7 @@ export function registerCrashHandlers(io, socket){
       if((card.balance || 0) < amt) return cb?.({ ok: false, error: "Solde insuffisant." });
 
       await adjustBalance({ cardId, amount: -amt, type: "mise", gameId: "crash", note: `Mise ${amt} jeton(s) — Ascension Fulgurante` });
+      addRake(amt);
       table.bets.push({
         id: `${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
         cardId, steamId: socket.session.steamId, playerName: socket.session.playerName,

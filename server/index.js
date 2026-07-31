@@ -14,6 +14,7 @@ import { registerDiceHandlers } from "./handlers/games/dice.js";
 import { registerRouletteHandlers, initRoulette } from "./handlers/games/roulette.js";
 import { registerBlackjackHandlers, initBlackjack } from "./handlers/games/blackjack.js";
 import { registerCrashHandlers, initCrash } from "./handlers/games/crash.js";
+import { registerJackpotHandlers, initJackpot } from "./handlers/jackpot.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, "..");
@@ -31,6 +32,7 @@ initCards(io);
 initRoulette(io);
 initBlackjack(io);
 initCrash(io);
+initJackpot(io);
 
 io.on("connection", (socket) => {
   socket.session = null;
@@ -49,6 +51,7 @@ io.on("connection", (socket) => {
   registerRouletteHandlers(io, socket);
   registerBlackjackHandlers(io, socket);
   registerCrashHandlers(io, socket);
+  registerJackpotHandlers(io, socket);
 });
 
 const PORT = process.env.PORT || 3000;

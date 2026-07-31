@@ -4,6 +4,7 @@
    en direct : seul le résultat final (transactions) est persisté. */
 import { isCroupierOrAdmin, isPlayer } from "../../auth.js";
 import { adjustBalance, isExpired, isSuspended } from "../cards.js";
+import { addRake } from "../jackpot.js";
 import { getDb } from "../../db.js";
 
 const TABLE_ID = "roulette-1";
@@ -63,6 +64,7 @@ export function registerRouletteHandlers(io, socket){
         cardId, amount: -amt, type: "mise", gameId: "roulette",
         note: `Mise ${amt} jeton(s) sur ${label}`
       });
+      addRake(amt);
       table.bets.push({
         id: `${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
         roundId: table.roundId, cardId, steamId: socket.session.steamId, playerName: socket.session.playerName,

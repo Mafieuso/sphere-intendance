@@ -54,6 +54,7 @@ import { toast } from "./assets/js/toast.js";
 import { unlockCard, getPlayerSession, clearPlayerSession } from "./assets/js/playerSession.js";
 import { getCard, cardTransactions, isExpired, msUntilExpiration, isSuspended } from "./assets/js/cards.js";
 import { tokenDisplayHTML, formatYen, tokensToYen } from "./assets/js/economy.js";
+import { mountJackpotWidget } from "./assets/js/jackpot.js";
 
 initFx();
 initUiFx();
@@ -93,6 +94,7 @@ async function renderCard(){
 
   unlockView.style.display = "none";
   cardView.style.display = "block";
+  mountJackpotWidget({ canSubscribe: true });
   const expired = isExpired(card);
   const suspended = isSuspended(card);
   const hoursLeft = expired ? 0 : Math.floor(msUntilExpiration(card) / 3600000);

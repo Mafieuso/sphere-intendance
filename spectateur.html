@@ -51,8 +51,10 @@ import { initFx } from "./assets/js/fx.js";
 import { initUiFx, staggerIn } from "./assets/js/uiFx.js";
 import { request, on } from "./assets/js/api.js";
 import { formatYen, tokensToYen } from "./assets/js/economy.js";
+import { mountJackpotWidget } from "./assets/js/jackpot.js";
 initFx();
 initUiFx();
+mountJackpotWidget({ canSubscribe: false });
 staggerIn('.table-card');
 
 const MEDALS = ["🥇","🥈","🥉"];

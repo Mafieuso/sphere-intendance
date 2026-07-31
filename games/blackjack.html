@@ -121,6 +121,7 @@ import { getPlayerSession } from "../assets/js/playerSession.js";
 import { getCard } from "../assets/js/cards.js";
 import { tokenDisplayHTML } from "../assets/js/economy.js";
 import { request, on, onReconnect } from "../assets/js/api.js";
+import { mountJackpotWidget } from "../assets/js/jackpot.js";
 
 initFx();
 initUiFx();
@@ -128,6 +129,7 @@ initUiFx();
 const staff = getSession();
 const player = getPlayerSession();
 const isCroupier = staff && (staff.role === "croupier" || staff.role === "admin");
+mountJackpotWidget({ canSubscribe: !!player });
 
 document.getElementById("backLink").href = isCroupier ? "../croupier.html" : "../carte.html";
 if(!isCroupier) document.getElementById("backLink").textContent = "← Ma Carte";

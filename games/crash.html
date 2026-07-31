@@ -109,6 +109,7 @@ import { getPlayerSession } from "../assets/js/playerSession.js";
 import { getCard } from "../assets/js/cards.js";
 import { tokenDisplayHTML, formatYen, tokensToYen } from "../assets/js/economy.js";
 import { request, on, onReconnect } from "../assets/js/api.js";
+import { mountJackpotWidget } from "../assets/js/jackpot.js";
 
 initFx();
 initUiFx();
@@ -122,6 +123,7 @@ const MAX_MULTIPLIER = 10;
 const staff = getSession();
 const player = getPlayerSession();
 const isCroupier = staff && (staff.role === "croupier" || staff.role === "admin");
+mountJackpotWidget({ canSubscribe: !!player });
 
 document.getElementById("backLink").href = isCroupier ? "../croupier.html" : (player ? "../carte.html" : "../spectateur.html");
 if(player) document.getElementById("backLink").textContent = "← Ma Carte";

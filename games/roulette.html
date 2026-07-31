@@ -55,6 +55,8 @@
 .wheel-stage{position:relative;}
 .num-cell.winning{animation:numWin 1s ease-in-out 3;box-shadow:0 0 0 2px var(--gold);z-index:2;}
 @keyframes numWin{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}
+.num-cell.near-miss{animation:numNearMiss 1s ease-in-out 3;box-shadow:0 0 0 2px #ffb74d;z-index:2;}
+@keyframes numNearMiss{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
 .quick-bets{display:flex;gap:6px;margin-top:6px;}
 .quick-bet-btn{flex:1;padding:5px;font-size:.56rem;font-family:'Cinzel',serif;letter-spacing:1px;border-radius:5px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);color:var(--text-muted);transition:.15s;}
 .quick-bet-btn:hover{border-color:rgba(201,162,39,.4);color:var(--gold);}
@@ -140,6 +142,7 @@ import { getPlayerSession } from "../assets/js/playerSession.js";
 import { getCard } from "../assets/js/cards.js";
 import { tokenDisplayHTML, formatYen, tokensToYen } from "../assets/js/economy.js";
 import { request, on, onReconnect } from "../assets/js/api.js";
+import { mountJackpotWidget } from "../assets/js/jackpot.js";
 
 initFx();
 initUiFx();
@@ -150,6 +153,7 @@ function numberColor(n){ if(n===0) return "vert"; return RED_NUMBERS.has(n) ? "r
 const staff = getSession();
 const player = getPlayerSession();
 const isCroupier = staff && (staff.role === "croupier" || staff.role === "admin");
+mountJackpotWidget({ canSubscribe: !!player });
 
 document.getElementById("backLink").href = isCroupier ? "../croupier.html" : "../carte.html";
 if(!isCroupier) document.getElementById("backLink").textContent = "← Ma Carte";
@@ -261,6 +265,7 @@ function applyState(table){
     statusLine.textContent = `Mises ouvertes — Croupier : ${table.croupierName || '—'}`;
     resultEl.textContent = "—"; resultEl.className = "result-number";
     document.querySelectorAll(".num-cell.winning").forEach(c => c.classList.remove("winning"));
+    document.querySelectorAll(".num-cell.near-miss").forEach(c => c.classList.remove("near-miss"));
   }
   if(table.status === "spinning" && lastStatus !== "spinning"){
     statusLine.textContent = "La roue tourne…";
@@ -294,9 +299,22 @@ function joinTable(){ request("table:roulette:join").then(res => applyState(res.
 joinTable();
 onReconnect(joinTable);
 
+/* Ordre réel des numéros sur la roue européenne (pas l'ordre numérique) —
+   sert à détecter un "presque gagné" : le numéro misé était juste à côté
+   du numéro sorti sur la roue, pas juste "proche" numériquement. */
+const WHEEL_ORDER = [0,32,15,19,4,21,2,25,17,34,6,27,13,36,11,30,8,23,10,5,24,16,33,1,20,14,31,9,22,18,29,7,28,12,35,3,26];
+function isWheelAdjacent(a, b){
+  const ia = WHEEL_ORDER.indexOf(a), ib = WHEEL_ORDER.indexOf(b);
+  if(ia === -1 || ib === -1) return false;
+  const dist = Math.abs(ia - ib);
+  return dist === 1 || dist === WHEEL_ORDER.length - 1;
+}
+
 /* Détecte si le joueur a gagné (ou perdu) sur cette manche pour célébrer
    — ou réagir — localement. Un numéro plein (×36) est un gros gain :
-   célébration renforcée (flash + confettis généreux). */
+   célébration renforcée (flash + confettis généreux). Un numéro plein qui
+   rate de justesse (case voisine sur la roue) est mis en évidence pour
+   donner envie de retenter. */
 function checkMyWin(table){
   const mine = table.bets.filter(b => b.cardId === player.id);
   if(!mine.length) return;
@@ -313,6 +331,12 @@ function checkMyWin(table){
     if(bigWin) jackpotBurst(cx, cy); else burst(cx, cy);
   }else{
     shake(document.getElementById("wheel"));
+    const nearMiss = mine.find(bet => bet.betType === "number" && isWheelAdjacent(parseInt(bet.betValue, 10), table.result));
+    if(nearMiss){
+      toast(`😬 Si proche ! ${nearMiss.betValue} était juste à côté du ${table.result} sur la roue.`, "warn");
+      const cell = document.querySelector(`.num-cell[data-value="${nearMiss.betValue}"]`);
+      if(cell) cell.classList.add("near-miss");
+    }
   }
 }
 </script>

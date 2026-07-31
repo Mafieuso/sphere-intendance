@@ -315,6 +315,20 @@ a{color:inherit;text-decoration:none;}
 .wow-card-deal{animation:wowCardDeal .35s cubic-bezier(.2,.8,.3,1.2) both;}
 @keyframes wowCardDeal{from{opacity:0;transform:translateY(-22px) scale(.8) rotate(-6deg);}to{opacity:1;transform:translateY(0) scale(1) rotate(0);}}
 
+/* Cagnotte du Jackpot — badge flottant visible sur toutes les pages de jeu,
+   pour que sa progression se voie partout, peu importe la table. */
+.jackpot-widget{position:fixed;top:14px;right:14px;z-index:500;
+  background:linear-gradient(135deg,rgba(26,19,5,.94),rgba(10,7,2,.94));
+  border:1px solid var(--gold2);border-radius:12px;padding:10px 16px;text-align:center;
+  box-shadow:0 8px 24px rgba(0,0,0,.5);backdrop-filter:blur(6px);min-width:130px;}
+.jackpot-label{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:2px;color:var(--gold);text-transform:uppercase;}
+.jackpot-amount{font-family:'Cinzel',serif;font-size:1.05rem;font-weight:900;color:var(--gold2);margin:2px 0;
+  text-shadow:0 0 16px rgba(240,208,96,.35);}
+.jackpot-yen{font-size:.55rem;color:var(--text-muted);margin-bottom:6px;}
+.jackpot-widget.pulse{animation:jackpotPulse .5s ease;}
+@keyframes jackpotPulse{0%{transform:scale(1)}40%{transform:scale(1.07)}100%{transform:scale(1)}}
+@media(max-width:640px){.jackpot-widget{position:static;margin:0 auto 16px;width:fit-content;}}
+
 @media(prefers-reduced-motion:reduce){
   .page-title::before,.stat-icon,.chip-icon,.stat-val,#sidebar,#topbar,.badge::after,.toast,.btn-solid,.sidebar-ornament{animation:none!important;}
 }
