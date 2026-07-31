@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Connexion Steam — Sphère de l'Intendance</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/theme.css">
+</head>
+<body>
+<div class="bg-fx"></div>
+<div id="toast-container"></div>
+<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;">
+  <div style="text-align:center;color:var(--text-muted);font-family:'Cinzel',serif;letter-spacing:2px;">
+    <div class="loader" style="margin:0 auto 16px;"></div>
+    Connexion en cours…
+  </div>
+</div>
+
+<script type="module">
+import { toast } from "./assets/js/toast.js";
+import { loginWithSteamCode, roleLabel } from "./assets/js/session.js";
+
+function defaultPageFor(role){
+  if(role === "hote") return "hote.html";
+  if(role === "croupier") return "croupier.html";
+  if(role === "admin") return "admin.html";
+  return "index.html";
+}
+
+const code = new URLSearchParams(location.search).get("code");
+if(!code){
+  location.href = "login.html?error=steam";
+}else{
+  loginWithSteamCode(code).then((staff) => {
+    if(!staff){
+      toast("Connexion Steam échouée — réessaie.", "error");
+      setTimeout(() => { location.href = "login.html?error=steam"; }, 800);
+      return;
+    }
+    toast(`Bienvenue, ${staff.name} (${roleLabel(staff.role)})`, "success");
+    setTimeout(() => { location.href = defaultPageFor(staff.role); }, 500);
+  });
+}
+</script>
+</body>
+</html>

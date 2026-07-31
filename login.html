@@ -33,10 +33,17 @@
     <div class="login-crest">⛩</div>
     <div class="login-title">Accès Staff</div>
     <div class="login-sub">Sphère de l'Intendance</div>
+
+    <a href="/auth/steam" class="btn btn-solid btn-block btn-lg" style="background:#1b2838;border-color:#2a475e;margin-bottom:18px;display:flex;align-items:center;justify-content:center;gap:8px;">
+      <span>🎮</span> Se connecter avec Steam
+    </a>
+    <div style="font-size:.6rem;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:18px;">— Hôte &amp; Intendance —</div>
+    <div style="font-size:.62rem;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;">— Croupier —</div>
+
     <form id="loginForm">
       <div class="form-group">
         <label class="form-label">Code secret (PIN)</label>
-        <input class="form-input pin-input" id="pinInput" type="password" placeholder="••••••••" autocomplete="off" required autofocus>
+        <input class="form-input pin-input" id="pinInput" type="password" placeholder="••••••••" autocomplete="off" required>
       </div>
       <button type="submit" class="btn btn-solid btn-block btn-lg" id="loginBtn">Entrer</button>
     </form>
@@ -75,6 +82,13 @@ const next = params.get("next");
 const existing = getSession();
 if(existing && existing.role){
   location.href = next || defaultPageFor(existing.role);
+}
+
+const steamError = params.get("error");
+if(steamError === "steam_unregistered"){
+  toast("Ce compte Steam n'est enregistré ni comme Hôte ni comme Intendance.", "error");
+}else if(steamError === "steam"){
+  toast("Connexion Steam échouée — réessaie.", "error");
 }
 
 function defaultPageFor(role){

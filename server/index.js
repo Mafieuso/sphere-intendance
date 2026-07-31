@@ -5,6 +5,7 @@ import { fileURLToPath } from "url";
 import { Server } from "socket.io";
 
 import { verifyToken } from "./auth.js";
+import { registerSteamAuthRoutes } from "./steamAuth.js";
 import { registerSessionHandlers } from "./handlers/session.js";
 import { registerCardHandlers, initCards } from "./handlers/cards.js";
 import { registerAuditHandlers, initLogs } from "./handlers/logs.js";
@@ -18,9 +19,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, "..");
 
 const app = express();
+app.set("trust proxy", 1); // Render est derrière un proxy HTTPS — nécessaire pour que req.protocol soit correct (realm/return_to Steam)
 const server = http.createServer(app);
 const io = new Server(server);
 
+registerSteamAuthRoutes(app);
 app.use(express.static(ROOT, { extensions: ["html"] }));
 
 initLogs(io);

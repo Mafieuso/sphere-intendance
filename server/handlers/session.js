@@ -6,6 +6,7 @@ import { getDb, newId } from "../db.js";
 import { signStaffToken, signPlayerToken, isAdmin } from "../auth.js";
 import { serializeStaff, serializeCard } from "../serialize.js";
 import { logAction } from "./logs.js";
+import { exchangeSteamCode, STEAM_LOGIN_ROLES } from "../steamAuth.js";
 
 const PIN_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 function generatePin(length){
@@ -20,6 +21,23 @@ export function registerSessionHandlers(io, socket){
       const db = await getDb();
       const doc = await db.collection("staff").findOne({ pin: (pin || "").trim(), active: { $ne: false } });
       if(!doc) return cb?.({ ok: false, error: "Code secret invalide." });
+      if(STEAM_LOGIN_ROLES.includes(doc.role)){
+        return cb?.({ ok: false, error: "Ce rôle se connecte via Steam, pas par code PIN." });
+      }
+      const staff = { ...doc, id: doc._id };
+      socket.session = { kind: "staff", staffId: staff.id, role: staff.role, name: staff.name };
+      const token = signStaffToken(staff);
+      cb?.({ ok: true, token, staff: serializeStaff(staff.id, staff) });
+    }catch(e){ cb?.({ ok: false, error: e.message }); }
+  });
+
+  socket.on("staff:steamLogin", async ({ code } = {}, cb) => {
+    try{
+      const staffId = exchangeSteamCode(code);
+      if(!staffId) return cb?.({ ok: false, error: "Code Steam invalide ou expiré." });
+      const db = await getDb();
+      const doc = await db.collection("staff").findOne({ _id: staffId, active: { $ne: false } });
+      if(!doc) return cb?.({ ok: false, error: "Membre introuvable." });
       const staff = { ...doc, id: doc._id };
       socket.session = { kind: "staff", staffId: staff.id, role: staff.role, name: staff.name };
       const token = signStaffToken(staff);
@@ -47,10 +65,12 @@ export function registerSessionHandlers(io, socket){
       if(!name || !steamId) return cb?.({ ok: false, error: "Nom et Steam ID requis." });
       if(!["hote", "croupier", "admin"].includes(role)) return cb?.({ ok: false, error: "Rôle invalide." });
       const db = await getDb();
-      const pin = generatePin(8);
+      const usesSteam = STEAM_LOGIN_ROLES.includes(role);
+      const pin = usesSteam ? null : generatePin(8);
       const id = newId();
       await db.collection("staff").insertOne({
-        _id: id, name, steamId, role, pin, active: true, pinConfigured: false, pinSetAt: null,
+        _id: id, name, steamId, role, pin, active: true,
+        pinConfigured: usesSteam ? true : false, pinSetAt: null,
         createdAt: Date.now()
       });
       await logAction({
@@ -68,6 +88,9 @@ export function registerSessionHandlers(io, socket){
       const staff = db.collection("staff");
       const doc = await staff.findOne({ _id: staffId });
       if(!doc) return cb?.({ ok: false, error: "Membre introuvable." });
+      if(STEAM_LOGIN_ROLES.includes(doc.role)){
+        return cb?.({ ok: false, error: "Ce rôle se connecte via Steam — aucun code à réinitialiser." });
+      }
       const tempPin = generatePin(8);
       await staff.updateOne({ _id: staffId }, { $set: { pin: tempPin, pinConfigured: false, pinSetAt: null } });
       await logAction({

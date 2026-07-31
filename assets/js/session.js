@@ -25,6 +25,16 @@ export async function loginWithPin(pin){
   return res.staff;
 }
 
+/* Échange le code à usage unique reçu de /auth/steam/return contre un vrai
+   token — le JWT ne transite jamais dans une URL. */
+export async function loginWithSteamCode(code){
+  const res = await request("staff:steamLogin", { code }).catch(() => null);
+  if(!res?.ok) return null;
+  setToken(res.token);
+  setSession(res.staff);
+  return res.staff;
+}
+
 /* pinConfigured explicitement à false = code temporaire, à remplacer au
    premier login. Les comptes déjà existants sans ce champ sont considérés
    configurés, pour ne pas bloquer le staff déjà actif. */

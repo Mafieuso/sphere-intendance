@@ -161,6 +161,7 @@ request("audit:subscribe").then(res => { auditLogs = res.logs; renderAuditLog(au
 /* ── Staff ── */
 let staffById = {};
 function pinStatusHTML(s){
+  if(s.role !== "croupier") return `<span style="color:#66c0f4;">🎮 Connexion via Steam</span>`;
   if(s.pinConfigured === false) return `<span style="color:#ffb74d;">🔸 Code temporaire — pas encore configuré</span>`;
   if(s.pinSetAt) return `<span style="color:#5ee0af;">✓ Code configuré le ${new Date(s.pinSetAt).toLocaleString('fr-FR')}</span>`;
   return `<span style="color:#5ee0af;">✓ Code configuré</span>`;
@@ -180,7 +181,7 @@ async function loadStaff(){
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
         <span class="badge badge-${s.role}">${roleLabel(s.role)}</span>
-        <button class="btn btn-ghost btn-sm" style="font-size:.56rem;" onclick="window.__confirmResetPin('${s.id}')">Réinitialiser le code</button>
+        ${s.role === "croupier" ? `<button class="btn btn-ghost btn-sm" style="font-size:.56rem;" onclick="window.__confirmResetPin('${s.id}')">Réinitialiser le code</button>` : ''}
       </div>
     </div>`).join('');
 }
@@ -193,7 +194,9 @@ document.getElementById("btnAddStaff").addEventListener("click", async () => {
   try{
     const { pin } = await createStaff({ name, steamId, role });
     toast("Membre du staff ajouté.", "success");
-    document.getElementById("staffPinReveal").innerHTML = `<div class="pin-reveal"><div class="form-label">Code temporaire — à transmettre à ${name}</div><div class="pv">${pin}</div></div>`;
+    document.getElementById("staffPinReveal").innerHTML = pin
+      ? `<div class="pin-reveal"><div class="form-label">Code temporaire — à transmettre à ${name}</div><div class="pv">${pin}</div></div>`
+      : `<div class="pin-reveal">🎮 ${name} se connecte via Steam (${steamId}) — aucun code à transmettre.</div>`;
     document.getElementById("stName").value = ""; document.getElementById("stSteamId").value = "";
     loadStaff();
   }catch(e){
