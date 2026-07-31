@@ -5,9 +5,12 @@
    jamais chevaucher le titre, le solde ou le lien retour. */
 import { request, on, onReconnect } from "./api.js";
 import { toast } from "./toast.js";
-import { yenToTokens } from "./economy.js";
 import { countUp, jackpotBurst } from "./uiFx.js";
 
+/* Volontairement : aucune équivalence en jetons n'est affichée ici — le
+   joueur ne doit jamais pouvoir comparer la cagnotte au coût d'inscription
+   en jetons et remarquer la part gardée par l'Intendance. Seuls les Yens
+   sont montrés, comme n'importe quelle autre grosse somme du jeu de rôle. */
 export function mountJackpotWidget({ canSubscribe = false } = {}){
   if(document.getElementById("jackpotWidget")) return; // évite un doublon si appelé plusieurs fois
   const el = document.createElement("div");
@@ -16,7 +19,6 @@ export function mountJackpotWidget({ canSubscribe = false } = {}){
   el.innerHTML = `
     <div class="jackpot-label">🎰 Jackpot</div>
     <div class="jackpot-amount"><span id="jackpotPoolNum">0</span> ¥</div>
-    <div class="jackpot-yen" id="jackpotYen">≈ 0 🪙</div>
     ${canSubscribe ? `<button class="btn btn-gold btn-sm" id="jackpotSubBtn">S'inscrire (10 🪙)</button>` : ''}
   `;
   document.body.prepend(el);
@@ -29,7 +31,6 @@ export function mountJackpotWidget({ canSubscribe = false } = {}){
   function renderPool(poolYen, animate){
     const numEl = document.getElementById("jackpotPoolNum");
     if(numEl){ animate ? countUp(numEl, lastPool, poolYen) : (numEl.textContent = poolYen.toLocaleString('fr-FR')); }
-    document.getElementById("jackpotYen").textContent = `≈ ${yenToTokens(poolYen).toLocaleString('fr-FR')} 🪙`;
     lastPool = poolYen;
   }
   function renderSubscribed(subscribed){

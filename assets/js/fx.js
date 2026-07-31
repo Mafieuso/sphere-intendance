@@ -45,7 +45,39 @@ export function spawnParticles(){
   }
 }
 
+/* Transition de page — un voile qui se dissipe à l'arrivée et se referme
+   juste avant de quitter la page (liens internes, même origine, clic
+   simple), pour éviter le "saut" instantané entre deux pages. */
+export function initPageTransitions(){
+  const enter = document.createElement('div');
+  enter.className = 'page-transition-overlay pt-visible';
+  document.body.appendChild(enter);
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => { enter.classList.remove('pt-visible'); });
+  });
+  setTimeout(() => enter.remove(), 550);
+
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('a[href]');
+    if(!a || e.defaultPrevented) return;
+    if(a.target === '_blank' || a.hasAttribute('download')) return;
+    if(e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+    const hrefAttr = a.getAttribute('href') || '';
+    if(!hrefAttr || hrefAttr.startsWith('#') || hrefAttr.startsWith('javascript:')) return;
+    let url;
+    try{ url = new URL(a.href, location.href); }catch{ return; }
+    if(url.origin !== location.origin) return;
+    e.preventDefault();
+    const exit = document.createElement('div');
+    exit.className = 'page-transition-overlay';
+    document.body.appendChild(exit);
+    requestAnimationFrame(() => { exit.classList.add('pt-visible'); });
+    setTimeout(() => { location.href = a.href; }, 320);
+  });
+}
+
 export function initFx(){
   initEmbers();
   spawnParticles();
+  initPageTransitions();
 }

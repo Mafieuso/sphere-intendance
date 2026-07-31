@@ -343,7 +343,14 @@ a{color:inherit;text-decoration:none;}
 .rank-bar-fill{height:100%;background:linear-gradient(90deg,#c9a227,#f5d870);border-radius:4px;transition:width .6s ease;}
 .rank-next{font-size:.6rem;color:var(--text-muted);margin-top:6px;}
 
+/* Transition de page — voile qui se dissipe à l'arrivée, se referme avant
+   de quitter (assets/js/fx.js). */
+.page-transition-overlay{position:fixed;inset:0;z-index:99999;pointer-events:none;
+  background:radial-gradient(circle,#1a0505,#050202);opacity:0;transition:opacity .35s ease;}
+.page-transition-overlay.pt-visible{opacity:1;pointer-events:all;}
+
 @media(prefers-reduced-motion:reduce){
+  .page-transition-overlay{transition:none!important;}
   .page-title::before,.stat-icon,.chip-icon,.stat-val,#sidebar,#topbar,.badge::after,.toast,.btn-solid,.sidebar-ornament{animation:none!important;}
 }
 
