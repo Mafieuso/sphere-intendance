@@ -7,6 +7,7 @@
 import { isCroupierOrAdmin, isPlayer } from "../../auth.js";
 import { adjustBalance, isExpired, isSuspended } from "../cards.js";
 import { addRake } from "../jackpot.js";
+import { recordWager } from "../ranks.js";
 import { getDb } from "../../db.js";
 
 const TABLE_ID = "crash-1";
@@ -105,13 +106,14 @@ export function registerCrashHandlers(io, socket){
 
       await adjustBalance({ cardId, amount: -amt, type: "mise", gameId: "crash", note: `Mise ${amt} jeton(s) — Ascension Fulgurante` });
       addRake(amt);
+      const rankUp = await recordWager(cardId, amt);
       table.bets.push({
         id: `${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
         cardId, steamId: socket.session.steamId, playerName: socket.session.playerName,
         amount: amt, cashedOut: false, cashOutMultiplier: null
       });
       broadcast();
-      cb?.({ ok: true });
+      cb?.({ ok: true, rankUp });
     }catch(e){ cb?.({ ok: false, error: e.message }); }
   });
 

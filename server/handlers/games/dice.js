@@ -1,6 +1,7 @@
 import { isPlayer } from "../../auth.js";
 import { adjustBalance, isExpired, isSuspended } from "../cards.js";
 import { addRake } from "../jackpot.js";
+import { recordWager } from "../ranks.js";
 import { getDb } from "../../db.js";
 
 export function registerDiceHandlers(io, socket){
@@ -21,6 +22,7 @@ export function registerDiceHandlers(io, socket){
       if((card.balance || 0) < amount) return cb?.({ ok: false, error: "Solde de jetons insuffisant." });
 
       addRake(amount);
+      const rankUp = await recordWager(cardId, amount);
       const roll = Math.floor(Math.random() * 6) + 1;
       const win = roll === num;
       const net = win ? amount * 4 : -amount;
@@ -28,7 +30,7 @@ export function registerDiceHandlers(io, socket){
         cardId, amount: net, type: win ? "gain" : "perte", gameId: "dice",
         note: `Mise ${amount} jeton(s) sur ${num}, résultat ${roll}`
       });
-      cb?.({ ok: true, roll, win, net, balanceAfter });
+      cb?.({ ok: true, roll, win, net, balanceAfter, rankUp });
     }catch(e){ cb?.({ ok: false, error: e.message }); }
   });
 }

@@ -5,6 +5,7 @@
 import { isCroupierOrAdmin, isPlayer } from "../../auth.js";
 import { adjustBalance, isExpired, isSuspended } from "../cards.js";
 import { addRake } from "../jackpot.js";
+import { recordWager } from "../ranks.js";
 import { getDb } from "../../db.js";
 
 const TABLE_ID = "blackjack-1";
@@ -78,13 +79,14 @@ export function registerBlackjackHandlers(io, socket){
 
       await adjustBalance({ cardId, amount: -amt, type: "mise", gameId: "blackjack", note: `Mise ${amt} jeton(s) au Blackjack` });
       addRake(amt);
+      const rankUp = await recordWager(cardId, amt);
       table.seats.push({
         id: `${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
         cardId, steamId: socket.session.steamId, playerName: socket.session.playerName,
         bet: amt, hand: [], status: "waiting"
       });
       broadcast();
-      cb?.({ ok: true });
+      cb?.({ ok: true, rankUp });
     }catch(e){ cb?.({ ok: false, error: e.message }); }
   });
 

@@ -102,6 +102,7 @@ import { getCard } from "../assets/js/cards.js";
 import { request } from "../assets/js/api.js";
 import { tokenDisplayHTML, formatYen, tokensToYen } from "../assets/js/economy.js";
 import { mountJackpotWidget } from "../assets/js/jackpot.js";
+import { celebrateRankUp } from "../assets/js/ranks.js";
 
 initFx();
 initUiFx();
@@ -170,7 +171,7 @@ document.getElementById("btnPlay").addEventListener("click", async () => {
     playing = false; btnPlay.disabled = false;
     return;
   }
-  const { roll, win, net, balanceAfter } = res;
+  const { roll, win, net, balanceAfter, rankUp } = res;
 
   setTimeout(async () => {
     die.textContent = roll;
@@ -191,6 +192,7 @@ document.getElementById("btnPlay").addEventListener("click", async () => {
         document.querySelector(".panel").classList.add("shake");
         setTimeout(() => document.querySelector(".panel").classList.remove("shake"), 400);
       }
+      if(rankUp) setTimeout(() => celebrateRankUp(rankUp), 400);
     }catch(e){ toast(e.message, "error"); }
     playing = false;
     btnPlay.disabled = false;

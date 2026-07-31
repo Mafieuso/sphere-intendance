@@ -5,6 +5,7 @@
 import { isCroupierOrAdmin, isPlayer } from "../../auth.js";
 import { adjustBalance, isExpired, isSuspended } from "../cards.js";
 import { addRake } from "../jackpot.js";
+import { recordWager } from "../ranks.js";
 import { getDb } from "../../db.js";
 
 const TABLE_ID = "roulette-1";
@@ -65,13 +66,14 @@ export function registerRouletteHandlers(io, socket){
         note: `Mise ${amt} jeton(s) sur ${label}`
       });
       addRake(amt);
+      const rankUp = await recordWager(cardId, amt);
       table.bets.push({
         id: `${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
         roundId: table.roundId, cardId, steamId: socket.session.steamId, playerName: socket.session.playerName,
         amount: amt, betType, betValue, createdAt: Date.now()
       });
       broadcast();
-      cb?.({ ok: true });
+      cb?.({ ok: true, rankUp });
     }catch(e){ cb?.({ ok: false, error: e.message }); }
   });
 

@@ -21,7 +21,7 @@ export function serializeStaff(id, data, { includePin = false } = {}){
 export function serializeCard(id, data, { includePin = false } = {}){
   return {
     id, steamId: data.steamId, playerName: data.playerName, balance: data.balance || 0,
-    status: data.status || "active",
+    status: data.status || "active", totalWagered: data.totalWagered || 0,
     createdAt: millis(data.createdAt), lastTransactionAt: millis(data.lastTransactionAt),
     ...(includePin ? { pin: data.pin } : {})
   };

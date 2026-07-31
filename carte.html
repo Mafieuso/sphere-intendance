@@ -55,6 +55,7 @@ import { unlockCard, getPlayerSession, clearPlayerSession } from "./assets/js/pl
 import { getCard, cardTransactions, isExpired, msUntilExpiration, isSuspended } from "./assets/js/cards.js";
 import { tokenDisplayHTML, formatYen, tokensToYen } from "./assets/js/economy.js";
 import { mountJackpotWidget } from "./assets/js/jackpot.js";
+import { rankProgressHTML } from "./assets/js/ranks.js";
 
 initFx();
 initUiFx();
@@ -86,6 +87,30 @@ function renderUnlock(){
   });
 }
 
+/* Statistiques personnelles calculées depuis l'historique (jusqu'à 500
+   transactions les plus récentes — au-delà, pas de vraie base "à vie",
+   mais largement suffisant pour un casino qui n'ouvre que par événements).
+   "mise" couvre Roulette/Blackjack/Crash (une mise = une manche jouée) ;
+   Pile ou Face/Dés n'enregistrent qu'un seul mouvement net par manche
+   (gain ou perte), donc comptés séparément pour ne pas fausser le total. */
+const GAME_NAMES = { coinflip:'Pile ou Face', dice:'Lancer de Dés', roulette:'Roulette', blackjack:'Blackjack', crash:'Ascension Fulgurante' };
+function renderStats(txs){
+  const miseTxs = txs.filter(t => t.type === 'mise' && t.gameId && t.gameId !== 'jackpot');
+  const netGameTxs = txs.filter(t => (t.type === 'gain' || t.type === 'perte') && (t.gameId === 'coinflip' || t.gameId === 'dice'));
+  const gains = txs.filter(t => t.type === 'gain' && t.gameId && t.gameId !== 'jackpot');
+  const totalRounds = miseTxs.length + netGameTxs.length;
+  const winRate = totalRounds > 0 ? Math.round((gains.length / totalRounds) * 100) : null;
+  const biggestWin = gains.length ? Math.max(...gains.map(t => t.amount)) : 0;
+
+  const gameCounts = {};
+  [...miseTxs, ...netGameTxs].forEach(t => { gameCounts[t.gameId] = (gameCounts[t.gameId] || 0) + 1; });
+  const favGameId = Object.entries(gameCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
+
+  document.getElementById("statBiggestWin").textContent = biggestWin.toLocaleString('fr-FR');
+  document.getElementById("statWinRate").textContent = winRate !== null ? `${winRate}%` : '—';
+  document.getElementById("statFavGame").textContent = favGameId ? (GAME_NAMES[favGameId] || favGameId) : '—';
+}
+
 async function renderCard(){
   const session = getPlayerSession();
   if(!session) return renderUnlock();
@@ -112,6 +137,17 @@ async function renderCard(){
       <div class="cv-steam">${card.steamId}</div>
       <div class="cv-balance-row"><div class="cv-balance">${tokenDisplayHTML(card.balance)}</div></div>
       <div class="cv-expire">${suspended ? "Carte suspendue par l'Hôte — tes jetons sont gelés en attendant la réactivation." : (expired ? "Aucune activité depuis plus de 24h — repasse à la caisse pour la réactiver." : `Expire dans ${hoursLeft}h sans activité.`)}</div>
+      <div style="margin-top:20px;position:relative;z-index:1;">${rankProgressHTML(card.totalWagered)}</div>
+    </div>
+
+    <div class="panel" style="margin-top:20px;">
+      <div class="panel-title">📊 Mes Statistiques</div>
+      <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr));">
+        <div class="stat-card"><div class="stat-val" id="statTotalWagered">0</div><div class="stat-label">Total Misé</div></div>
+        <div class="stat-card"><div class="stat-val" id="statBiggestWin">0</div><div class="stat-label">Plus Gros Gain</div></div>
+        <div class="stat-card"><div class="stat-val" id="statWinRate">—</div><div class="stat-label">Taux de Victoire</div></div>
+        <div class="stat-card"><div class="stat-val" id="statFavGame" style="font-size:1rem;">—</div><div class="stat-label">Jeu Favori</div></div>
+      </div>
     </div>
 
     <div class="page-header" style="margin-top:32px;">
@@ -141,8 +177,11 @@ async function renderCard(){
   staggerIn('.game-tile');
   const balanceNumEl = cardView.querySelector('.cv-balance .token-num');
   if(balanceNumEl) countUp(balanceNumEl, 0, card.balance, { duration: 900 });
+  document.getElementById("statTotalWagered").textContent = (card.totalWagered || 0).toLocaleString('fr-FR');
 
-  const txs = await cardTransactions(card.id, 25);
+  const allTxs = await cardTransactions(card.id, 500);
+  renderStats(allTxs);
+  const txs = allTxs.slice(0, 25);
   const typeColor = { depot:'#1fae7c', retrait:'#c9282f', mise:'#c9a227', gain:'#1fae7c', perte:'#c9282f' };
   const el = document.getElementById("cardTxLog");
   if(!txs.length){ el.innerHTML = `<div class="empty-state"><p>Aucune transaction pour l'instant.</p></div>`; }

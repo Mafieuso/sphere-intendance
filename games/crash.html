@@ -110,6 +110,7 @@ import { getCard } from "../assets/js/cards.js";
 import { tokenDisplayHTML, formatYen, tokensToYen } from "../assets/js/economy.js";
 import { request, on, onReconnect } from "../assets/js/api.js";
 import { mountJackpotWidget } from "../assets/js/jackpot.js";
+import { celebrateRankUp } from "../assets/js/ranks.js";
 
 initFx();
 initUiFx();
@@ -186,9 +187,10 @@ document.getElementById("btnJoin")?.addEventListener("click", async () => {
   const btnJoin = document.getElementById("btnJoin");
   btnJoin.disabled = true;
   try{
-    await request("table:crash:bet", { amount });
+    const res = await request("table:crash:bet", { amount });
     toast("Mise engagée pour la prochaine ascension.", "success");
     refreshBalance();
+    if(res.rankUp) celebrateRankUp(res.rankUp);
   }catch(e){
     toast(e.message, "error");
   }finally{

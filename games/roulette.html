@@ -143,6 +143,7 @@ import { getCard } from "../assets/js/cards.js";
 import { tokenDisplayHTML, formatYen, tokensToYen } from "../assets/js/economy.js";
 import { request, on, onReconnect } from "../assets/js/api.js";
 import { mountJackpotWidget } from "../assets/js/jackpot.js";
+import { celebrateRankUp } from "../assets/js/ranks.js";
 
 initFx();
 initUiFx();
@@ -211,10 +212,11 @@ document.getElementById("btnPlaceBet")?.addEventListener("click", async () => {
   const btn = document.getElementById("btnPlaceBet");
   btn.disabled = true;
   try{
-    await request("table:roulette:bet", { betType: selectedBet.type, betValue: selectedBet.value, amount });
+    const res = await request("table:roulette:bet", { betType: selectedBet.type, betValue: selectedBet.value, amount });
     toast("Mise placée !", "success");
     document.getElementById("myBetHint").textContent = `Mise en cours : ${amount} 🪙 (${formatYen(tokensToYen(amount))}) sur ${selectedBet.type==='color'?selectedBet.value:('numéro '+selectedBet.value)}`;
     refreshBalance();
+    if(res.rankUp) celebrateRankUp(res.rankUp);
   }catch(e){
     toast(e.message, "error");
   }finally{
