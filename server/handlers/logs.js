@@ -3,6 +3,7 @@
    laisser chaque navigateur relire l'historique via des écouteurs Firestore. */
 import { getDb, newId } from "../db.js";
 import { serializeLog } from "../serialize.js";
+import { isAdmin } from "../auth.js";
 
 let ioRef = null;
 export function initLogs(io){ ioRef = io; }
@@ -50,6 +51,7 @@ export async function broadcastLeaderboard(){
 
 export function registerAuditHandlers(io, socket){
   socket.on("audit:subscribe", async (_payload, cb) => {
+    if(!isAdmin(socket.session)) return cb?.({ ok: false, error: "Réservé à l'Intendance." });
     socket.join("audit");
     try{
       const db = await getDb();

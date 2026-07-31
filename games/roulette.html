@@ -133,7 +133,7 @@
 
 <script type="module">
 import { initFx } from "../assets/js/fx.js";
-import { initUiFx, burst, animateTokenPill } from "../assets/js/uiFx.js";
+import { initUiFx, burst, jackpotBurst, shake, animateTokenPill } from "../assets/js/uiFx.js";
 import { toast } from "../assets/js/toast.js";
 import { getSession } from "../assets/js/session.js";
 import { getPlayerSession } from "../assets/js/playerSession.js";
@@ -294,19 +294,25 @@ function joinTable(){ request("table:roulette:join").then(res => applyState(res.
 joinTable();
 onReconnect(joinTable);
 
-/* Détecte si le joueur a gagné sur cette manche pour célébrer localement */
+/* Détecte si le joueur a gagné (ou perdu) sur cette manche pour célébrer
+   — ou réagir — localement. Un numéro plein (×36) est un gros gain :
+   célébration renforcée (flash + confettis généreux). */
 function checkMyWin(table){
   const mine = table.bets.filter(b => b.cardId === player.id);
   if(!mine.length) return;
   const color = numberColor(table.result);
-  const won = mine.some(bet =>
+  const winningBets = mine.filter(bet =>
     (bet.betType === "color" && bet.betValue === color) ||
     (bet.betType === "number" && parseInt(bet.betValue, 10) === table.result)
   );
-  if(won){
-    toast("🎉 Numéro gagnant ! Tes gains sont crédités.", "success");
-    const wheelRect = document.getElementById("wheel").getBoundingClientRect();
-    burst(wheelRect.left + wheelRect.width/2, wheelRect.top + wheelRect.height/2);
+  const wheelRect = document.getElementById("wheel").getBoundingClientRect();
+  const cx = wheelRect.left + wheelRect.width/2, cy = wheelRect.top + wheelRect.height/2;
+  if(winningBets.length){
+    const bigWin = winningBets.some(b => b.betType === "number");
+    toast(bigWin ? "🎉 Numéro plein ! Gros gain crédité." : "🎉 Numéro gagnant ! Tes gains sont crédités.", "success");
+    if(bigWin) jackpotBurst(cx, cy); else burst(cx, cy);
+  }else{
+    shake(document.getElementById("wheel"));
   }
 }
 </script>

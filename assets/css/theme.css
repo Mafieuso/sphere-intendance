@@ -299,6 +299,22 @@ a{color:inherit;text-decoration:none;}
   transform:translate(-50%,-50%);animation:wowRingPulse .7s ease-out forwards;}
 @keyframes wowRingPulse{from{width:10px;height:10px;opacity:.9;}to{width:180px;height:180px;opacity:0;}}
 
+/* Secousse — feedback tactile sur une perte, pour que le jeu réagisse aussi
+   quand ça ne passe pas, pas seulement sur les victoires. */
+.wow-shake{animation:wowShake .4s ease;}
+@keyframes wowShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-5px)}80%{transform:translateX(5px)}}
+
+/* Flash plein écran pour les gros gains (blackjack naturel, numéro plein à
+   la roulette, gros multiplicateur à l'Ascension Fulgurante). */
+.wow-flash{position:fixed;inset:0;pointer-events:none;z-index:99996;
+  background:radial-gradient(circle,rgba(245,216,112,.5),transparent 65%);animation:wowFlash .6s ease-out forwards;}
+@keyframes wowFlash{0%{opacity:0}30%{opacity:1}100%{opacity:0}}
+
+/* Distribution des cartes (Blackjack) — glisse et se redresse au lieu
+   d'apparaître d'un coup. */
+.wow-card-deal{animation:wowCardDeal .35s cubic-bezier(.2,.8,.3,1.2) both;}
+@keyframes wowCardDeal{from{opacity:0;transform:translateY(-22px) scale(.8) rotate(-6deg);}to{opacity:1;transform:translateY(0) scale(1) rotate(0);}}
+
 @media(prefers-reduced-motion:reduce){
   .page-title::before,.stat-icon,.chip-icon,.stat-val,#sidebar,#topbar,.badge::after,.toast,.btn-solid,.sidebar-ornament{animation:none!important;}
 }

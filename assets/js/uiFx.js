@@ -109,6 +109,23 @@ export function burst(x, y, { count = 22, colors = ['#f5d870','#c9a227','#5ee0af
   }
 }
 
+/* Secousse de feedback sur une perte — le jeu réagit aussi quand ça ne
+   passe pas, pas seulement sur les victoires. */
+export function shake(el){
+  if(!el) return;
+  el.classList.remove('wow-shake'); void el.offsetWidth; el.classList.add('wow-shake');
+}
+
+/* Flash plein écran + confettis plus généreux, réservé aux gros gains
+   (blackjack naturel, numéro plein, gros multiplicateur). */
+export function jackpotBurst(x, y, opts = {}){
+  const f = document.createElement('div');
+  f.className = 'wow-flash';
+  document.body.appendChild(f);
+  setTimeout(() => f.remove(), 650);
+  burst(x, y, { count: 44, colors: ['#f5d870','#c9a227','#5ee0af','#66c0f4'], ...opts });
+}
+
 /* Traînée de particules douces suivant le curseur (désactivée sur tactile) */
 export function initCursorTrail(){
   if(matchMedia('(pointer:coarse)').matches) return;

@@ -114,7 +114,7 @@
 
 <script type="module">
 import { initFx } from "../assets/js/fx.js";
-import { initUiFx, burst, animateTokenPill } from "../assets/js/uiFx.js";
+import { initUiFx, burst, jackpotBurst, shake, animateTokenPill } from "../assets/js/uiFx.js";
 import { toast } from "../assets/js/toast.js";
 import { getSession } from "../assets/js/session.js";
 import { getPlayerSession } from "../assets/js/playerSession.js";
@@ -229,6 +229,7 @@ async function actOnHand(action){
 }
 
 const celebratedSeats = new Set();
+const shakenSeats = new Set();
 function applyState(t){
   document.getElementById("statusLabel").textContent = `Manche #${t.roundId} — ${({betting:'Mises ouvertes',playing:'En cours',result:'Résultat'})[t.status] || t.status}`;
   renderHand(document.getElementById("dealerHand"), t.dealerHand || []);
@@ -260,7 +261,7 @@ function renderSeats(seats){
     const statusText = { waiting:'En attente', playing:'À toi de jouer', bust:'Bust !', stand:'Reste', win:'Gagné !', lose:'Perdu', push:'Égalité' }[s.status] || s.status;
     return `<div class="seat ${mine?'me':''} ${s.status==='win'?'win':''}" data-id="${s.id}">
       <div class="seat-name">${s.playerName} — ${tokenDisplayHTML(s.bet, {small:true})}</div>
-      <div class="hand">${(s.hand||[]).map(c => { if(c.hidden) return `<div class="card hidden">?</div>`; const red=c.suit==='♥'||c.suit==='♦'; return `<div class="card ${red?'red':''}">${c.rank}<span style="font-size:.7rem">${c.suit}</span></div>`; }).join('')}</div>
+      <div class="hand">${(s.hand||[]).map(c => { if(c.hidden) return `<div class="card hidden wow-card-deal">?</div>`; const red=c.suit==='♥'||c.suit==='♦'; return `<div class="card wow-card-deal ${red?'red':''}">${c.rank}<span style="font-size:.7rem">${c.suit}</span></div>`; }).join('')}</div>
       ${s.hand && s.hand.length ? `<div class="hand-total">Total : ${s.total}</div>` : ''}
       <div class="seat-status ${s.status}">${statusText}</div>
     </div>`;
@@ -268,12 +269,21 @@ function renderSeats(seats){
 
   seats.forEach(s => {
     const mine = player && s.cardId === player.id;
+    const seatEl = grid.querySelector(`.seat[data-id="${s.id}"]`);
     if(mine && s.status === "win" && !celebratedSeats.has(s.id)){
       celebratedSeats.add(s.id);
-      toast(`🎉 Blackjack gagné !`, "success");
-      const seatEl = grid.querySelector(`.seat[data-id="${s.id}"]`);
-      if(seatEl){ const r = seatEl.getBoundingClientRect(); burst(r.left + r.width/2, r.top + r.height/2); }
+      const natural = s.total === 21 && (s.hand||[]).length === 2;
+      toast(natural ? `🎉 Blackjack naturel ! Gros gain.` : `🎉 Blackjack gagné !`, "success");
+      if(seatEl){
+        const r = seatEl.getBoundingClientRect();
+        const cx = r.left + r.width/2, cy = r.top + r.height/2;
+        natural ? jackpotBurst(cx, cy) : burst(cx, cy);
+      }
       refreshBalance();
+    }
+    if(mine && (s.status === "bust" || s.status === "lose") && !shakenSeats.has(s.id)){
+      shakenSeats.add(s.id);
+      if(seatEl) shake(seatEl);
     }
   });
 }

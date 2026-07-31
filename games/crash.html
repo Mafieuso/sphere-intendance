@@ -102,7 +102,7 @@
 
 <script type="module">
 import { initFx } from "../assets/js/fx.js";
-import { initUiFx, burst, animateTokenPill } from "../assets/js/uiFx.js";
+import { initUiFx, burst, jackpotBurst, shake, animateTokenPill } from "../assets/js/uiFx.js";
 import { toast } from "../assets/js/toast.js";
 import { getSession } from "../assets/js/session.js";
 import { getPlayerSession } from "../assets/js/playerSession.js";
@@ -163,6 +163,7 @@ document.getElementById("btnNewRound")?.addEventListener("click", async (e) => {
     await request("table:crash:newRound");
     toast("Nouvelle manche ouverte — placez vos mises.", "success");
   }catch(err){ toast(err.message, "warn"); }
+  finally{ e.target.disabled = false; }
 });
 
 document.getElementById("btnLaunch")?.addEventListener("click", async (e) => {
@@ -200,11 +201,13 @@ document.getElementById("btnCashout")?.addEventListener("click", async () => {
   btnCashout.disabled = true;
   try{
     const res = await request("table:crash:cashout");
+    const bigWin = res.multiplier >= 5;
     toast(`Encaissé à ${res.multiplier.toFixed(2)}× — +${res.payout} 🪙 (${formatYen(tokensToYen(res.payout))})`, "success");
     const multEl = document.getElementById("crashMult");
     multEl.classList.add("cashed");
     const r = multEl.getBoundingClientRect();
-    burst(r.left + r.width/2, r.top + r.height/2, { colors: ['#5ee0af','#f5d870'] });
+    const cx = r.left + r.width/2, cy = r.top + r.height/2;
+    bigWin ? jackpotBurst(cx, cy) : burst(cx, cy, { colors: ['#5ee0af','#f5d870'] });
     refreshBalance();
   }catch(e){
     toast(e.message, "error");
@@ -249,8 +252,11 @@ function applyState(t){
     const progress = Math.min(1, (t.multiplier - 1) / (MAX_MULTIPLIER - 1));
     rocket.style.left = (8 + progress * 78) + "%";
     rocket.style.bottom = (10 + progress * 150) + "px";
+    /* La cadence des embers s'accélère avec le multiplicateur — la tension
+       monte visuellement à mesure que le crash devient plus payant/risqué. */
     const now = performance.now();
-    if(!lastEmberAt || now - lastEmberAt > 90){ lastEmberAt = now; spawnEmber(stage); }
+    const emberInterval = Math.max(30, 90 - progress * 60);
+    if(!lastEmberAt || now - lastEmberAt > emberInterval){ lastEmberAt = now; spawnEmber(stage); }
   }
   if(t.status === "crashed"){
     if(lastStatus !== "crashed"){
@@ -260,9 +266,11 @@ function applyState(t){
       stage.classList.add("crashed-fx");
       setTimeout(() => stage.classList.remove("crashed-fx"), 500);
       statusLine.textContent = `Crash à ${t.multiplier.toFixed(2)}× — Manche #${t.roundId}`;
+      const mine = player && t.bets.find(b => b.cardId === player.id);
+      if(mine && !mine.cashedOut) shake(el);
       refreshBalance();
     }
-    if(isCroupier && btnNew && btnLaunch){ btnNew.style.display = "inline-flex"; btnLaunch.style.display = "none"; }
+    if(isCroupier && btnNew && btnLaunch){ btnNew.style.display = "inline-flex"; btnNew.disabled = false; btnLaunch.style.display = "none"; }
     if(btnJoin) btnJoin.disabled = true;
   }
   updateCashoutVisibility(t);
