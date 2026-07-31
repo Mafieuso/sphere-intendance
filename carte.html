@@ -60,6 +60,10 @@ import { rankProgressHTML } from "./assets/js/ranks.js";
 initFx();
 initUiFx();
 
+if(new URLSearchParams(location.search).get("expired") === "1"){
+  toast("Session expirée — déverrouille à nouveau ta carte.", "warn");
+}
+
 const unlockView = document.getElementById("unlockView");
 const cardView = document.getElementById("cardView");
 

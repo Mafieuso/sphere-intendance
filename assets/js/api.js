@@ -18,6 +18,22 @@ function armReady(){
   ready = new Promise((resolve) => { resolveReady = resolve; });
 }
 
+/* Un jeton présent mais rejeté (expiré, invalide) laissait jusqu'ici la
+   page tourner indéfiniment : "ready" se résolvait quand même, puis chaque
+   requête protégée échouait une à une ("Réservé à l'Intendance.", etc.)
+   sans jamais remplacer les indicateurs de chargement. On détecte ce rejet
+   explicitement (le serveur renvoie {ok:false} sur auth:token) et on renvoie
+   proprement vers la connexion plutôt que de laisser la page dans les limbes. */
+function handleExpiredSession(){
+  const wasStaff = !!localStorage.getItem("sphereIntendanceStaff");
+  const wasPlayer = !!localStorage.getItem("sphereIntendancePlayer");
+  clearToken();
+  localStorage.removeItem("sphereIntendanceStaff");
+  localStorage.removeItem("sphereIntendancePlayer");
+  if(wasStaff) location.href = "/login.html?expired=1";
+  else if(wasPlayer) location.href = "/carte.html?expired=1";
+}
+
 export function getSocket(){
   if(socket) return socket;
   socket = io({ autoConnect: true });
@@ -25,7 +41,8 @@ export function getSocket(){
   let first = true;
   socket.on("connect", () => {
     const token = getToken();
-    const afterAuth = () => {
+    const afterAuth = (ack) => {
+      if(token && !ack?.ok){ handleExpiredSession(); return; }
       resolveReady();
       if(first){ first = false; return; }
       reconnectCallbacks.forEach(cb => { try{ cb(); }catch(e){ console.error(e); } });

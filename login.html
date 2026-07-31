@@ -89,6 +89,8 @@ if(steamError === "steam_unregistered"){
   toast("Ce compte Steam n'est enregistré ni comme Hôte ni comme Intendance.", "error");
 }else if(steamError === "steam"){
   toast("Connexion Steam échouée — réessaie.", "error");
+}else if(params.get("expired") === "1"){
+  toast("Session expirée — reconnecte-toi.", "warn");
 }
 
 function defaultPageFor(role){
