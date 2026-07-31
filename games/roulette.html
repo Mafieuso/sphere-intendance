@@ -144,6 +144,7 @@ import { tokenDisplayHTML, formatYen, tokensToYen } from "../assets/js/economy.j
 import { request, on, onReconnect } from "../assets/js/api.js";
 import { mountJackpotWidget } from "../assets/js/jackpot.js";
 import { celebrateRankUp } from "../assets/js/ranks.js";
+import { reactToOutcome } from "../assets/js/assistant.js";
 
 initFx();
 initUiFx();
@@ -331,8 +332,10 @@ function checkMyWin(table){
     const bigWin = winningBets.some(b => b.betType === "number");
     toast(bigWin ? "🎉 Numéro plein ! Gros gain crédité." : "🎉 Numéro gagnant ! Tes gains sont crédités.", "success");
     if(bigWin) jackpotBurst(cx, cy); else burst(cx, cy);
+    reactToOutcome(true);
   }else{
     shake(document.getElementById("wheel"));
+    reactToOutcome(false);
     const nearMiss = mine.find(bet => bet.betType === "number" && isWheelAdjacent(parseInt(bet.betValue, 10), table.result));
     if(nearMiss){
       toast(`😬 Si proche ! ${nearMiss.betValue} était juste à côté du ${table.result} sur la roue.`, "warn");

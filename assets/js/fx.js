@@ -80,4 +80,5 @@ export function initFx(){
   initEmbers();
   spawnParticles();
   initPageTransitions();
+  import("./assistant.js").then(m => m.mountAssistant());
 }

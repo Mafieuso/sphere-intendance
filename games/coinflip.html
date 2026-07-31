@@ -124,6 +124,7 @@ import { request } from "../assets/js/api.js";
 import { tokenDisplayHTML, formatYen, tokensToYen } from "../assets/js/economy.js";
 import { mountJackpotWidget } from "../assets/js/jackpot.js";
 import { celebrateRankUp } from "../assets/js/ranks.js";
+import { reactToOutcome } from "../assets/js/assistant.js";
 
 initFx();
 initUiFx();
@@ -217,9 +218,11 @@ document.getElementById("btnPlay").addEventListener("click", async (evt) => {
         coin.classList.add("win-spin");
         const rect = coin.getBoundingClientRect();
         burst(rect.left + rect.width/2, rect.top + rect.height/2);
+        reactToOutcome(true);
       }else{
         document.querySelector(".panel").classList.add("shake");
         setTimeout(() => document.querySelector(".panel").classList.remove("shake"), 400);
+        reactToOutcome(false);
       }
       if(rankUp) setTimeout(() => celebrateRankUp(rankUp), 400);
     }catch(e){ toast(e.message, "error"); }

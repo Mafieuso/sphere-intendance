@@ -111,6 +111,7 @@ import { tokenDisplayHTML, formatYen, tokensToYen } from "../assets/js/economy.j
 import { request, on, onReconnect } from "../assets/js/api.js";
 import { mountJackpotWidget } from "../assets/js/jackpot.js";
 import { celebrateRankUp } from "../assets/js/ranks.js";
+import { reactToOutcome } from "../assets/js/assistant.js";
 
 initFx();
 initUiFx();
@@ -212,6 +213,7 @@ document.getElementById("btnCashout")?.addEventListener("click", async () => {
     const r = multEl.getBoundingClientRect();
     const cx = r.left + r.width/2, cy = r.top + r.height/2;
     bigWin ? jackpotBurst(cx, cy) : burst(cx, cy, { colors: ['#5ee0af','#f5d870'] });
+    reactToOutcome(true);
     refreshBalance();
   }catch(e){
     toast(e.message, "error");
@@ -271,7 +273,7 @@ function applyState(t){
       setTimeout(() => stage.classList.remove("crashed-fx"), 500);
       statusLine.textContent = `Crash à ${t.multiplier.toFixed(2)}× — Manche #${t.roundId}`;
       const mine = player && t.bets.find(b => b.cardId === player.id);
-      if(mine && !mine.cashedOut) shake(el);
+      if(mine && !mine.cashedOut){ shake(el); reactToOutcome(false); }
       refreshBalance();
     }
     if(isCroupier && btnNew && btnLaunch){ btnNew.style.display = "inline-flex"; btnNew.disabled = false; btnLaunch.style.display = "none"; }

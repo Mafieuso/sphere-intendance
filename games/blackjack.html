@@ -123,6 +123,7 @@ import { tokenDisplayHTML } from "../assets/js/economy.js";
 import { request, on, onReconnect } from "../assets/js/api.js";
 import { mountJackpotWidget } from "../assets/js/jackpot.js";
 import { celebrateRankUp } from "../assets/js/ranks.js";
+import { reactToOutcome } from "../assets/js/assistant.js";
 
 initFx();
 initUiFx();
@@ -283,11 +284,13 @@ function renderSeats(seats){
         const cx = r.left + r.width/2, cy = r.top + r.height/2;
         natural ? jackpotBurst(cx, cy) : burst(cx, cy);
       }
+      reactToOutcome(true);
       refreshBalance();
     }
     if(mine && (s.status === "bust" || s.status === "lose") && !shakenSeats.has(s.id)){
       shakenSeats.add(s.id);
       if(seatEl) shake(seatEl);
+      reactToOutcome(false);
     }
   });
 }

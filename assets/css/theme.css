@@ -351,8 +351,54 @@ a{color:inherit;text-decoration:none;}
 
 @media(prefers-reduced-motion:reduce){
   .page-transition-overlay{transition:none!important;}
-  .page-title::before,.stat-icon,.chip-icon,.stat-val,#sidebar,#topbar,.badge::after,.toast,.btn-solid,.sidebar-ornament{animation:none!important;}
+  .page-title::before,.stat-icon,.chip-icon,.stat-val,#sidebar,#topbar,.badge::after,.toast,.btn-solid,.sidebar-ornament,.assistant-avatar{animation:none!important;}
 }
+
+/* Assistant-mascotte flottant — aide (FAQ) + réactions courtes après une
+   mise (assets/js/assistant.js). Coin bas-gauche pour ne jamais chevaucher
+   les toasts (bas-droite) ni le bandeau Jackpot (haut, pleine largeur). */
+.assistant-widget{position:fixed;left:18px;bottom:18px;z-index:9500;}
+.assistant-avatar{width:60px;height:60px;border-radius:50%;border:2px solid var(--gold);
+  background:radial-gradient(circle at 35% 30%,#2a1204,#160902 70%);padding:0;overflow:hidden;
+  box-shadow:0 4px 16px rgba(0,0,0,.6),0 0 18px rgba(201,162,39,.25);
+  animation:assistantBob 3.4s ease-in-out infinite;transition:transform .2s,box-shadow .2s;}
+.assistant-avatar:hover{transform:scale(1.08);box-shadow:0 4px 20px rgba(0,0,0,.6),0 0 26px rgba(201,162,39,.45);}
+.assistant-avatar img{width:100%;height:100%;object-fit:cover;object-position:top center;}
+@keyframes assistantBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+
+.assistant-bubble{position:absolute;bottom:72px;left:0;width:230px;padding:10px 14px;border-radius:14px 14px 14px 4px;
+  background:#0d0705;border:1px solid var(--border-h);color:var(--text);font-size:.72rem;line-height:1.5;
+  box-shadow:0 8px 24px rgba(0,0,0,.5);animation:assistantBubbleIn .3s ease;}
+.assistant-bubble-win{border-color:rgba(31,174,124,.5);}
+.assistant-bubble-lose{border-color:rgba(201,40,47,.5);}
+@keyframes assistantBubbleIn{from{opacity:0;transform:translateY(8px) scale(.9)}to{opacity:1;transform:translateY(0) scale(1)}}
+
+.assistant-panel{position:absolute;bottom:72px;left:0;width:300px;max-height:min(70vh,460px);display:flex;flex-direction:column;
+  background:var(--panel);border:1px solid rgba(201,162,39,.25);border-top:3px solid var(--gold);border-radius:12px;
+  box-shadow:0 16px 44px rgba(0,0,0,.7);opacity:0;transform:translateY(12px) scale(.97);transition:opacity .18s ease,transform .18s ease;}
+.assistant-panel.assistant-panel-open{opacity:1;transform:translateY(0) scale(1);}
+.assistant-panel-head{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--border);}
+.assistant-panel-avatar{width:30px;height:30px;border-radius:50%;object-fit:cover;object-position:top center;border:1px solid var(--gold);}
+.assistant-panel-title{font-family:'Cinzel',serif;font-size:.68rem;letter-spacing:2px;text-transform:uppercase;color:var(--gold);flex:1;}
+.assistant-close{background:none;border:none;color:var(--text-muted);font-size:1rem;}
+.assistant-close:hover{color:var(--text);}
+.assistant-panel-body{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;}
+.assistant-msg{font-size:.74rem;line-height:1.6;color:var(--text);}
+.assistant-msg-q{color:var(--gold2);font-weight:600;}
+.assistant-topics{display:flex;flex-direction:column;gap:6px;}
+.assistant-topic{text-align:left;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:rgba(255,255,255,.02);
+  color:var(--text);font-size:.72rem;transition:.15s;}
+.assistant-topic:hover{border-color:var(--gold);background:rgba(201,162,39,.08);color:var(--gold2);}
+.assistant-back{align-self:flex-start;background:none;border:none;color:var(--gold);font-size:.68rem;letter-spacing:1px;}
+.assistant-back:hover{color:var(--gold2);}
+.assistant-rules{list-style:none;display:flex;flex-direction:column;gap:8px;margin-top:6px;}
+.assistant-rules li{font-size:.7rem;line-height:1.5;color:var(--text-muted);padding-left:16px;position:relative;}
+.assistant-rules li::before{content:'◆';position:absolute;left:0;top:0;color:var(--gold);font-size:.55rem;}
+.assistant-panel-input{display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--border);}
+.assistant-panel-input input{flex:1;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px;
+  padding:8px 10px;color:var(--text);font-size:.72rem;}
+.assistant-panel-input input:focus{outline:none;border-color:var(--gold);}
+@media(max-width:480px){.assistant-panel{width:calc(100vw - 36px);}}
 
 /* ══════════════════════════════════════════════════════
    ═══════════  MISE EN PAGE JEU + RÈGLEMENT  ═══════════
