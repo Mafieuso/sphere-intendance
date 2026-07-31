@@ -6,7 +6,7 @@
    côté serveur au moment de la demande, jamais contre une valeur du client. */
 import { isCroupierOrAdmin, isPlayer } from "../../auth.js";
 import { adjustBalance, isExpired, isSuspended } from "../cards.js";
-import { getDb } from "../../firebaseAdmin.js";
+import { getDb } from "../../db.js";
 
 const TABLE_ID = "crash-1";
 const ROOM = `table:${TABLE_ID}`;
@@ -95,9 +95,9 @@ export function registerCrashHandlers(io, socket){
       const cardId = socket.session.cardId;
       if(table.bets.some(b => b.cardId === cardId)) return cb?.({ ok: false, error: "Tu as déjà misé sur cette manche." });
 
-      const cardDoc = await getDb().collection("playerCards").doc(cardId).get();
-      if(!cardDoc.exists) return cb?.({ ok: false, error: "Carte introuvable." });
-      const card = cardDoc.data();
+      const db = await getDb();
+      const card = await db.collection("playerCards").findOne({ _id: cardId });
+      if(!card) return cb?.({ ok: false, error: "Carte introuvable." });
       if(isExpired(card)) return cb?.({ ok: false, error: "Carte expirée." });
       if(isSuspended(card)) return cb?.({ ok: false, error: "Carte suspendue — contacte l'Hôte." });
       if((card.balance || 0) < amt) return cb?.({ ok: false, error: "Solde insuffisant." });

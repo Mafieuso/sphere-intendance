@@ -4,7 +4,7 @@
    serveur (jamais fournis par le navigateur), et les dépôts/retraits passent
    par des événements dédiés réservés à l'Hôte/l'Admin. C'est ce qui ferme
    les failles "solde modifiable par n'importe qui" et "role auto-déclaré". */
-import { getDb, FieldValue } from "../firebaseAdmin.js";
+import { getDb, newId } from "../db.js";
 import { isHoteOrAdmin, isPlayer } from "../auth.js";
 import { serializeCard, serializeTransaction } from "../serialize.js";
 import { logAction } from "./logs.js";
@@ -32,9 +32,9 @@ export function initCards(io){ ioRef = io; }
 async function broadcastCardsList(){
   if(!ioRef) return;
   try{
-    const db = getDb();
-    const snap = await db.collection("playerCards").get();
-    const cards = snap.docs.map(d => serializeCard(d.id, d.data()));
+    const db = await getDb();
+    const docs = await db.collection("playerCards").find({}).toArray();
+    const cards = docs.map(d => serializeCard(d._id, d));
     ioRef.to("cards:list").emit("cards:list:update", cards);
   }catch(e){ console.error("broadcastCardsList a échoué :", e); }
 }
@@ -46,34 +46,40 @@ async function broadcastProfit(){
   }catch(e){ console.error("broadcastProfit a échoué :", e); }
 }
 
-/* Ajuste un solde de façon atomique. amount positif = crédit, négatif = débit.
-   Rejette si le solde deviendrait négatif. Fonction interne — pas un handler
-   socket direct. */
+/* Ajuste un solde de façon atomique via une mise à jour conditionnelle
+   MongoDB (balance >= -amount) — équivalent à la transaction Firestore
+   d'origine, mais en une seule opération atomique native. amount positif
+   = crédit, négatif = débit. Rejette si le solde deviendrait négatif. */
 export async function adjustBalance({ cardId, amount, type, staffId, staffName, gameId, note }){
-  const db = getDb();
-  const cardRef = db.collection("playerCards").doc(cardId);
-  let result;
-  await db.runTransaction(async (tx) => {
-    const snap = await tx.get(cardRef);
-    if(!snap.exists) throw new Error("Carte introuvable.");
-    const card = snap.data();
-    const newBalance = (card.balance || 0) + amount;
-    if(newBalance < 0) throw new Error("Solde insuffisant.");
-    tx.update(cardRef, { balance: newBalance, lastTransactionAt: FieldValue.serverTimestamp() });
-    result = { steamId: card.steamId, playerName: card.playerName, balanceAfter: newBalance };
-  });
+  const db = await getDb();
+  const cards = db.collection("playerCards");
+  const now = Date.now();
 
-  const txRef = await db.collection("transactions").add({
-    cardId, steamId: result.steamId, playerName: result.playerName,
+  const res = await cards.findOneAndUpdate(
+    { _id: cardId, balance: { $gte: -amount } },
+    { $inc: { balance: amount }, $set: { lastTransactionAt: now } },
+    { returnDocument: "after", includeResultMetadata: true }
+  );
+  const card = res.value;
+  if(!card){
+    const existing = await cards.findOne({ _id: cardId });
+    if(!existing) throw new Error("Carte introuvable.");
+    throw new Error("Solde insuffisant.");
+  }
+  const result = { steamId: card.steamId, playerName: card.playerName, balanceAfter: card.balance };
+
+  const txId = newId();
+  await db.collection("transactions").insertOne({
+    _id: txId, cardId, steamId: result.steamId, playerName: result.playerName,
     type, amount, balanceAfter: result.balanceAfter,
     staffId: staffId || null, staffName: staffName || null,
-    gameId: gameId || null, note: note || "", createdAt: FieldValue.serverTimestamp()
+    gameId: gameId || null, note: note || "", createdAt: now
   });
   if(ioRef){
-    ioRef.to("transactions:feed").emit("transactions:new", serializeTransaction(txRef.id, {
+    ioRef.to("transactions:feed").emit("transactions:new", serializeTransaction(txId, {
       cardId, steamId: result.steamId, playerName: result.playerName, type, amount,
       balanceAfter: result.balanceAfter, staffName: staffName || null, gameId: gameId || null,
-      note: note || "", createdAt: Date.now()
+      note: note || "", createdAt: now
     }));
   }
 
@@ -85,8 +91,8 @@ export async function adjustBalance({ cardId, amount, type, staffId, staffName, 
 
   if(gameId){
     try{
-      await db.collection("stats").doc("global").set(
-        { casinoProfitTokens: FieldValue.increment(-amount) }, { merge: true }
+      await db.collection("stats").updateOne(
+        { _id: "global" }, { $inc: { casinoProfitTokens: -amount } }, { upsert: true }
       );
       broadcastProfit();
       broadcastLeaderboard();
@@ -97,17 +103,14 @@ export async function adjustBalance({ cardId, amount, type, staffId, staffName, 
 }
 
 export async function casinoProfitTokens(){
-  const db = getDb();
-  const statsRef = db.collection("stats").doc("global");
-  const snap = await statsRef.get();
-  if(snap.exists && typeof snap.data().casinoProfitTokens === "number") return snap.data().casinoProfitTokens;
+  const db = await getDb();
+  const stats = db.collection("stats");
+  const doc = await stats.findOne({ _id: "global" });
+  if(doc && typeof doc.casinoProfitTokens === "number") return doc.casinoProfitTokens;
   // Migration unique : calcule depuis l'historique complet, puis mémorise.
-  const txSnap = await db.collection("transactions").get();
-  const total = txSnap.docs.reduce((sum, d) => {
-    const t = d.data();
-    return t.gameId ? sum - (t.amount || 0) : sum;
-  }, 0);
-  await statsRef.set({ casinoProfitTokens: total }, { merge: true });
+  const txs = await db.collection("transactions").find({}).toArray();
+  const total = txs.reduce((sum, t) => t.gameId ? sum - (t.amount || 0) : sum, 0);
+  await stats.updateOne({ _id: "global" }, { $set: { casinoProfitTokens: total } }, { upsert: true });
   return total;
 }
 
@@ -116,13 +119,15 @@ export function registerCardHandlers(io, socket){
     try{
       if(!isHoteOrAdmin(socket.session)) return cb?.({ ok: false, error: "Réservé à l'Hôte." });
       if(!steamId || !playerName) return cb?.({ ok: false, error: "Steam ID et nom requis." });
-      const db = getDb();
-      const existing = await db.collection("playerCards").where("steamId", "==", steamId.trim()).limit(1).get();
-      if(!existing.empty) return cb?.({ ok: false, error: "Une carte existe déjà pour ce Steam ID." });
+      const db = await getDb();
+      const existing = await db.collection("playerCards").findOne({ steamId: steamId.trim() });
+      if(existing) return cb?.({ ok: false, error: "Une carte existe déjà pour ce Steam ID." });
       const pin = generateCardPin();
-      const ref = await db.collection("playerCards").add({
-        steamId: steamId.trim(), playerName: playerName.trim(), balance: 0, pin,
-        createdAt: FieldValue.serverTimestamp(), lastTransactionAt: FieldValue.serverTimestamp(),
+      const id = newId();
+      const now = Date.now();
+      await db.collection("playerCards").insertOne({
+        _id: id, steamId: steamId.trim(), playerName: playerName.trim(), balance: 0, pin,
+        createdAt: now, lastTransactionAt: now,
         createdBy: socket.session.staffId, createdByName: socket.session.name, status: "active"
       });
       await logAction({
@@ -130,18 +135,17 @@ export function registerCardHandlers(io, socket){
         steamId, playerName, staffId: socket.session.staffId, staffName: socket.session.name
       });
       broadcastCardsList();
-      cb?.({ ok: true, cardId: ref.id, pin });
+      cb?.({ ok: true, cardId: id, pin });
     }catch(e){ cb?.({ ok: false, error: e.message }); }
   });
 
   socket.on("card:find", async ({ steamId } = {}, cb) => {
     try{
       if(!isHoteOrAdmin(socket.session)) return cb?.({ ok: false, error: "Réservé à l'Hôte." });
-      const db = getDb();
-      const snap = await db.collection("playerCards").where("steamId", "==", (steamId || "").trim()).limit(1).get();
-      if(snap.empty) return cb?.({ ok: true, card: null });
-      const d = snap.docs[0];
-      cb?.({ ok: true, card: serializeCard(d.id, d.data(), { includePin: true }) });
+      const db = await getDb();
+      const doc = await db.collection("playerCards").findOne({ steamId: (steamId || "").trim() });
+      if(!doc) return cb?.({ ok: true, card: null });
+      cb?.({ ok: true, card: serializeCard(doc._id, doc, { includePin: true }) });
     }catch(e){ cb?.({ ok: false, error: e.message }); }
   });
 
@@ -152,10 +156,10 @@ export function registerCardHandlers(io, socket){
       if(!isHoteOrAdmin(socket.session) && !(isPlayer(socket.session) && socket.session.cardId === targetId)){
         return cb?.({ ok: false, error: "Accès refusé." });
       }
-      const db = getDb();
-      const doc = await db.collection("playerCards").doc(targetId).get();
-      if(!doc.exists) return cb?.({ ok: true, card: null });
-      cb?.({ ok: true, card: serializeCard(doc.id, doc.data()) });
+      const db = await getDb();
+      const doc = await db.collection("playerCards").findOne({ _id: targetId });
+      if(!doc) return cb?.({ ok: true, card: null });
+      cb?.({ ok: true, card: serializeCard(doc._id, doc) });
     }catch(e){ cb?.({ ok: false, error: e.message }); }
   });
 
@@ -186,16 +190,15 @@ export function registerCardHandlers(io, socket){
   socket.on("card:suspend", async ({ cardId, suspend } = {}, cb) => {
     try{
       if(!isHoteOrAdmin(socket.session)) return cb?.({ ok: false, error: "Réservé à l'Hôte." });
-      const db = getDb();
-      const ref = db.collection("playerCards").doc(cardId);
-      const doc = await ref.get();
-      if(!doc.exists) return cb?.({ ok: false, error: "Carte introuvable." });
-      const card = doc.data();
-      await ref.update({ status: suspend ? "suspended" : "active" });
+      const db = await getDb();
+      const cards = db.collection("playerCards");
+      const doc = await cards.findOne({ _id: cardId });
+      if(!doc) return cb?.({ ok: false, error: "Carte introuvable." });
+      await cards.updateOne({ _id: cardId }, { $set: { status: suspend ? "suspended" : "active" } });
       await logAction({
         action: suspend ? "CARTE_SUSPENDUE" : "CARTE_REACTIVEE",
-        detail: suspend ? `Carte suspendue (Steam ID ${card.steamId})` : `Carte réactivée (Steam ID ${card.steamId})`,
-        steamId: card.steamId, playerName: card.playerName,
+        detail: suspend ? `Carte suspendue (Steam ID ${doc.steamId})` : `Carte réactivée (Steam ID ${doc.steamId})`,
+        steamId: doc.steamId, playerName: doc.playerName,
         staffId: socket.session.staffId, staffName: socket.session.name
       });
       broadcastCardsList();
@@ -206,34 +209,26 @@ export function registerCardHandlers(io, socket){
   socket.on("card:delete", async ({ cardId } = {}, cb) => {
     try{
       if(!isHoteOrAdmin(socket.session)) return cb?.({ ok: false, error: "Réservé à l'Hôte." });
-      const db = getDb();
-      const cardRef = db.collection("playerCards").doc(cardId);
-      const cardDoc = await cardRef.get();
-      if(!cardDoc.exists) return cb?.({ ok: false, error: "Carte introuvable." });
-      const steamId = cardDoc.data().steamId;
+      const db = await getDb();
+      const cardDoc = await db.collection("playerCards").findOne({ _id: cardId });
+      if(!cardDoc) return cb?.({ ok: false, error: "Carte introuvable." });
+      const steamId = cardDoc.steamId;
 
-      const txSnap = await db.collection("transactions").where("cardId", "==", cardId).get();
+      const txs = await db.collection("transactions").find({ cardId }).toArray();
       let profitReversal = 0;
-      const batchDeletes = [];
-      txSnap.docs.forEach(d => {
-        const t = d.data();
-        if(t.gameId) profitReversal += (t.amount || 0);
-        batchDeletes.push(d.ref.delete());
-      });
-      await Promise.all(batchDeletes);
+      txs.forEach(t => { if(t.gameId) profitReversal += (t.amount || 0); });
+      await db.collection("transactions").deleteMany({ cardId });
 
       if(profitReversal !== 0){
         try{
-          await db.collection("stats").doc("global").set(
-            { casinoProfitTokens: FieldValue.increment(profitReversal) }, { merge: true }
+          await db.collection("stats").updateOne(
+            { _id: "global" }, { $inc: { casinoProfitTokens: profitReversal } }, { upsert: true }
           );
         }catch(e){ console.error("Profit casino non ajusté :", e); }
       }
 
-      const logSnap = await db.collection("logs").where("steamId", "==", steamId).get();
-      await Promise.all(logSnap.docs.map(d => d.ref.delete()));
-
-      await cardRef.delete();
+      await db.collection("logs").deleteMany({ steamId });
+      await db.collection("playerCards").deleteOne({ _id: cardId });
 
       await logAction({
         action: "CARTE_SUPPRIMEE", detail: `Carte et historique effacés (Steam ID ${steamId})`,
@@ -251,11 +246,9 @@ export function registerCardHandlers(io, socket){
       if(!isHoteOrAdmin(socket.session) && !(isPlayer(socket.session) && socket.session.cardId === cardId)){
         return cb?.({ ok: false, error: "Accès refusé." });
       }
-      const db = getDb();
-      const snap = await db.collection("transactions").where("cardId", "==", cardId).get();
-      const txs = snap.docs.map(d => serializeTransaction(d.id, d.data()))
-        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, max);
-      cb?.({ ok: true, transactions: txs });
+      const db = await getDb();
+      const docs = await db.collection("transactions").find({ cardId }).sort({ createdAt: -1 }).limit(max).toArray();
+      cb?.({ ok: true, transactions: docs.map(d => serializeTransaction(d._id, d)) });
     }catch(e){ cb?.({ ok: false, error: e.message }); }
   });
 
@@ -263,9 +256,9 @@ export function registerCardHandlers(io, socket){
     try{
       if(!isHoteOrAdmin(socket.session)) return cb?.({ ok: false, error: "Réservé au staff." });
       socket.join("cards:list");
-      const db = getDb();
-      const snap = await db.collection("playerCards").get();
-      cb?.({ ok: true, cards: snap.docs.map(d => serializeCard(d.id, d.data())) });
+      const db = await getDb();
+      const docs = await db.collection("playerCards").find({}).toArray();
+      cb?.({ ok: true, cards: docs.map(d => serializeCard(d._id, d)) });
     }catch(e){ cb?.({ ok: false, error: e.message }); }
   });
   socket.on("cards:list:unsubscribe", () => socket.leave("cards:list"));
@@ -283,9 +276,9 @@ export function registerCardHandlers(io, socket){
     try{
       if(!isHoteOrAdmin(socket.session)) return cb?.({ ok: false, error: "Réservé au staff." });
       socket.join("transactions:feed");
-      const db = getDb();
-      const snap = await db.collection("transactions").orderBy("createdAt", "desc").limit(20).get();
-      cb?.({ ok: true, transactions: snap.docs.map(d => serializeTransaction(d.id, d.data())) });
+      const db = await getDb();
+      const docs = await db.collection("transactions").find({}).sort({ createdAt: -1 }).limit(20).toArray();
+      cb?.({ ok: true, transactions: docs.map(d => serializeTransaction(d._id, d)) });
     }catch(e){ cb?.({ ok: false, error: e.message }); }
   });
   socket.on("transactions:unsubscribe", () => socket.leave("transactions:feed"));

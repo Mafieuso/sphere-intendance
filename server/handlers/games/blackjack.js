@@ -4,7 +4,7 @@
    plus tôt (un tirage en cours ne peut plus être lu dans un état obsolète). */
 import { isCroupierOrAdmin, isPlayer } from "../../auth.js";
 import { adjustBalance, isExpired, isSuspended } from "../cards.js";
-import { getDb } from "../../firebaseAdmin.js";
+import { getDb } from "../../db.js";
 
 const TABLE_ID = "blackjack-1";
 const ROOM = `table:${TABLE_ID}`;
@@ -68,9 +68,9 @@ export function registerBlackjackHandlers(io, socket){
       const cardId = socket.session.cardId;
       if(table.seats.some(s => s.cardId === cardId)) return cb?.({ ok: false, error: "Tu es déjà à la table pour cette manche." });
 
-      const cardDoc = await getDb().collection("playerCards").doc(cardId).get();
-      if(!cardDoc.exists) return cb?.({ ok: false, error: "Carte introuvable." });
-      const card = cardDoc.data();
+      const db = await getDb();
+      const card = await db.collection("playerCards").findOne({ _id: cardId });
+      if(!card) return cb?.({ ok: false, error: "Carte introuvable." });
       if(isExpired(card)) return cb?.({ ok: false, error: "Carte expirée." });
       if(isSuspended(card)) return cb?.({ ok: false, error: "Carte suspendue — contacte l'Hôte." });
       if((card.balance || 0) < amt) return cb?.({ ok: false, error: "Solde insuffisant." });

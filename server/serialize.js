@@ -1,7 +1,7 @@
-/* Conversion des documents Firestore (Timestamps) en JSON transmissible par
-   Socket.io, et retrait systématique des champs sensibles (PIN) sauf usage
-   explicitement autorisé (ex: l'Hôte doit pouvoir relire le PIN d'une carte
-   pour le transmettre au joueur). */
+/* Conversion des documents Mongo en JSON transmissible par Socket.io, et
+   retrait systématique des champs sensibles (PIN) sauf usage explicitement
+   autorisé (ex: l'Hôte doit pouvoir relire le PIN d'une carte pour le
+   transmettre au joueur). */
 function millis(ts){
   if(!ts) return null;
   if(typeof ts.toMillis === "function") return ts.toMillis();
