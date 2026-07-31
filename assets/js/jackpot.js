@@ -1,6 +1,8 @@
-/* Widget Jackpot partagé — un badge flottant identique sur toutes les pages
+/* Widget Jackpot partagé — un bandeau identique en haut de toutes les pages
    de jeu, la carte joueur et la Salle en Direct, pour que la cagnotte se
-   voie grimper en direct peu importe où l'on se trouve. */
+   voie grimper en direct peu importe où l'on se trouve. Le contenu de la
+   page est repoussé vers le bas (padding-top mesuré sur body) pour ne
+   jamais chevaucher le titre, le solde ou le lien retour. */
 import { request, on, onReconnect } from "./api.js";
 import { toast } from "./toast.js";
 import { formatYen, tokensToYen } from "./economy.js";
@@ -15,9 +17,13 @@ export function mountJackpotWidget({ canSubscribe = false } = {}){
     <div class="jackpot-label">🎰 Jackpot</div>
     <div class="jackpot-amount"><span id="jackpotPoolNum">0</span> 🪙</div>
     <div class="jackpot-yen" id="jackpotYen">≈ 0 ¥</div>
-    ${canSubscribe ? `<button class="btn btn-gold btn-sm btn-block" id="jackpotSubBtn">S'inscrire (10 🪙)</button>` : ''}
+    ${canSubscribe ? `<button class="btn btn-gold btn-sm" id="jackpotSubBtn">S'inscrire (10 🪙)</button>` : ''}
   `;
-  document.body.appendChild(el);
+  document.body.prepend(el);
+
+  const applySpacing = () => { document.body.style.paddingTop = el.offsetHeight + "px"; };
+  applySpacing();
+  new ResizeObserver(applySpacing).observe(el);
 
   let lastPool = 0;
   function renderPool(pool, animate){
