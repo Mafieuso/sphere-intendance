@@ -1,6 +1,7 @@
 /* Session Joueur — déverrouille sa propre Carte via son PIN personnel
-   (distinct du PIN staff). Permet de jouer aux jeux solo sans compte complet. */
-import { findCardBySteamId } from "./cards.js";
+   (distinct du PIN staff), en passant par le serveur (qui vérifie le PIN
+   côté Firestore et ne renvoie jamais le PIN d'un autre joueur). */
+import { request, setToken, clearToken } from "./api.js";
 
 const KEY = "sphereIntendancePlayer";
 
@@ -9,16 +10,19 @@ export function getPlayerSession(){
 }
 export function setPlayerSession(card){
   localStorage.setItem(KEY, JSON.stringify({ id: card.id, steamId: card.steamId, playerName: card.playerName }));
+  localStorage.removeItem("sphereIntendanceStaff"); // une connexion active exclut l'autre
 }
 export function clearPlayerSession(){
   localStorage.removeItem(KEY);
+  clearToken();
 }
 
 export async function unlockCard(steamId, pin){
-  const card = await findCardBySteamId(steamId);
-  if(!card || card.pin !== pin.trim().toUpperCase()) return null;
-  setPlayerSession(card);
-  return card;
+  const res = await request("card:unlock", { steamId, pin }).catch(() => null);
+  if(!res?.ok) return null;
+  setToken(res.token);
+  setPlayerSession(res.card);
+  return res.card;
 }
 
 export function requirePlayerCard(){

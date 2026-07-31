@@ -1,87 +1,24 @@
 rules_version = '2';
 
 // ─────────────────────────────────────────────────────────────
-// IMPORTANT — LIS SETUP.md AVANT DE DÉPLOYER CES RÈGLES.
-// Ce site n'utilise PAS Firebase Authentication (pas de compte
-// email/mot de passe) : le rôle du staff (Hôte/Croupier/Admin)
-// est vérifié uniquement côté client via un code PIN stocké dans
-// la collection `staff`. Comme n'importe quel site statique avec
-// clé Firebase publique, ces règles ne peuvent PAS garantir
-// « seul un Hôte peut créditer des tokens » de façon
-// infalsifiable : elles valident la FORME des données et
-// empêchent les abus grossiers (solde négatif...), mais un
-// utilisateur techniquement motivé pourrait contourner
-// l'interface. C'est le même modèle de sécurité que les autres
-// sites de l'Ordre déjà en ligne. Pour une vraie séparation des
-// rôles côté serveur, il faudrait migrer vers Firebase
-// Authentication + Cloud Functions.
+// Depuis la migration vers le serveur Node.js (server/), plus AUCUN
+// navigateur ne touche Firestore directement : seul le serveur y accède,
+// via le SDK Admin (clé de service secrète, variable d'environnement
+// Render — jamais dans le dépôt public). Le SDK Admin ignore de toute
+// façon ces règles, mais on refuse tout accès client ici en défense en
+// profondeur, au cas où quelqu'un retrouverait l'identifiant du projet
+// Firebase et tenterait d'y accéder avec sa propre configuration.
 //
-// La suppression de cartes/transactions/logs est autorisée car
-// l'Hôte doit pouvoir effacer une carte joueur et tout son passage
-// dans le journal d'audit sur demande.
+// C'est ce verrouillage qui ferme les failles décrites dans l'audit de
+// sécurité (rôle auto-déclaré, PIN lisibles, tables truquables, soldes
+// modifiables par n'importe qui) : avant, ces règles ne pouvaient
+// valider que la FORME des données, jamais l'identité de qui écrivait.
 // ─────────────────────────────────────────────────────────────
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Staff : lecture nécessaire pour la connexion par PIN.
-    // Utilise des PIN longs et aléatoires (pas "1234").
-    match /staff/{staffId} {
-      allow read: if true;
-      allow create, update: if request.resource.data.keys().hasAll(['name','role','pin','active'])
-        && request.resource.data.role in ['hote','croupier','admin'];
-      allow delete: if true;
-    }
-
-    // Cartes joueur : lecture publique (consultation de solde),
-    // écriture limitée à un solde >= 0, suppression autorisée (Hôte).
-    match /playerCards/{cardId} {
-      allow read: if true;
-      allow create: if request.resource.data.balance == 0
-        && request.resource.data.keys().hasAll(['steamId','playerName','balance','status']);
-      allow update: if request.resource.data.balance is number && request.resource.data.balance >= 0;
-      allow delete: if true;
-    }
-
-    // Transactions : registre financier, supprimable uniquement dans le cadre
-    // de l'effacement complet d'une carte (déclenché côté Hôte).
-    match /transactions/{txId} {
-      allow read: if true;
-      allow create: if request.resource.data.keys().hasAll(['cardId','type','amount']);
-      allow update: if false;
-      allow delete: if true;
-    }
-
-    // Logs d'audit : supprimables uniquement dans le cadre de l'effacement
-    // complet d'une carte.
-    match /logs/{logId} {
-      allow read: if true;
-      allow create: if request.resource.data.keys().hasAll(['action']);
-      allow update: if false;
-      allow delete: if true;
-    }
-
-    // Tables de jeu live (roulette / blackjack / crash) et leurs sous-collections
-    // (mises, sièges) : état partagé en temps réel.
-    match /tables/{tableId} {
-      allow read: if true;
-      allow write: if true;
-    }
-    match /tables/{tableId}/bets/{betId} {
-      allow read: if true;
-      allow write: if true;
-    }
-    match /tables/{tableId}/seats/{seatId} {
-      allow read: if true;
-      allow write: if true;
-    }
-
-    // Compteurs agrégés (ex: profit du casino) maintenus par increment() côté
-    // client, pour éviter de relire tout l'historique des transactions à
-    // chaque affichage — ce qui faisait vite exploser le quota de lectures.
-    match /stats/{statId} {
-      allow read: if true;
-      allow write: if true;
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

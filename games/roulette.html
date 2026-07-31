@@ -135,21 +135,17 @@
 import { initFx } from "../assets/js/fx.js";
 import { initUiFx, burst, animateTokenPill } from "../assets/js/uiFx.js";
 import { toast } from "../assets/js/toast.js";
-import { getSession, roleLabel } from "../assets/js/session.js";
+import { getSession } from "../assets/js/session.js";
 import { getPlayerSession } from "../assets/js/playerSession.js";
-import { getCard, adjustBalance, isExpired, isSuspended } from "../assets/js/cards.js";
+import { getCard } from "../assets/js/cards.js";
 import { tokenDisplayHTML, formatYen, tokensToYen } from "../assets/js/economy.js";
-import {
-  db, doc, getDoc, setDoc, collection, addDoc, query, where, orderBy, limit, getDocs, onSnapshot, serverTimestamp
-} from "../assets/js/firebase-init.js";
+import { request, on, onReconnect } from "../assets/js/api.js";
 
 initFx();
 initUiFx();
 
-const TABLE_ID = "roulette-1";
-const tableRef = doc(db, "tables", TABLE_ID);
 const RED_NUMBERS = new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
-function numberColor(n){ if(n===0) return "green"; return RED_NUMBERS.has(n) ? "red" : "black"; }
+function numberColor(n){ if(n===0) return "vert"; return RED_NUMBERS.has(n) ? "rouge" : "noir"; }
 
 const staff = getSession();
 const player = getPlayerSession();
@@ -185,7 +181,7 @@ if(grid){
   grid.appendChild(zero);
   for(let n=1;n<=36;n++){
     const c = document.createElement("div");
-    c.className = "num-cell " + numberColor(n);
+    c.className = "num-cell " + (numberColor(n) === "rouge" ? "red" : "black");
     c.textContent = n; c.dataset.type = "number"; c.dataset.value = n;
     grid.appendChild(c);
   }
@@ -200,15 +196,6 @@ document.querySelectorAll(".color-btn, .num-cell").forEach(el => {
   });
 });
 
-/* Assure l'existence du doc de table */
-async function ensureTable(){
-  const snap = await getDoc(tableRef);
-  if(!snap.exists()){
-    await setDoc(tableRef, { status: "closed", roundId: 0, result: null, croupierName: null, updatedAt: serverTimestamp() });
-  }
-}
-ensureTable();
-
 /* ── Placer une mise (joueur) ── */
 let placingBet = false;
 document.getElementById("btnPlaceBet")?.addEventListener("click", async () => {
@@ -220,19 +207,7 @@ document.getElementById("btnPlaceBet")?.addEventListener("click", async () => {
   const btn = document.getElementById("btnPlaceBet");
   btn.disabled = true;
   try{
-    const tableSnap = await getDoc(tableRef);
-    const table = tableSnap.data();
-    if(!table || table.status !== "betting") return toast("Les mises ne sont pas ouvertes.", "warn");
-    const card = await getCard(player.id);
-    if(isExpired(card)) return toast("Carte expirée.", "error");
-    if(isSuspended(card)) return toast("Carte suspendue — contacte l'Hôte.", "error");
-    if(card.balance < amount) return toast("Solde insuffisant.", "warn");
-
-    await adjustBalance({ cardId: player.id, amount: -amount, type: "mise", gameId: "roulette", note: `Mise ${amount} jeton(s) sur ${selectedBet.type==='color'?selectedBet.value:('numéro '+selectedBet.value)}` });
-    await addDoc(collection(db, "tables", TABLE_ID, "bets"), {
-      roundId: table.roundId, cardId: player.id, steamId: player.steamId, playerName: player.playerName,
-      amount, betType: selectedBet.type, betValue: selectedBet.value, createdAt: serverTimestamp()
-    });
+    await request("table:roulette:bet", { betType: selectedBet.type, betValue: selectedBet.value, amount });
     toast("Mise placée !", "success");
     document.getElementById("myBetHint").textContent = `Mise en cours : ${amount} 🪙 (${formatYen(tokensToYen(amount))}) sur ${selectedBet.type==='color'?selectedBet.value:('numéro '+selectedBet.value)}`;
     refreshBalance();
@@ -247,69 +222,37 @@ document.getElementById("btnPlaceBet")?.addEventListener("click", async () => {
 /* ── Contrôles Croupier ── */
 document.getElementById("btnNewRound")?.addEventListener("click", async (e) => {
   e.target.disabled = true;
-  const snap = await getDoc(tableRef);
-  const table = snap.data() || { roundId: 0 };
-  await setDoc(tableRef, {
-    status: "betting", roundId: (table.roundId||0) + 1, result: null,
-    croupierName: staff.name, updatedAt: serverTimestamp()
-  });
-  toast("Nouvelle manche ouverte — les joueurs peuvent miser.", "success");
+  try{
+    await request("table:roulette:newRound");
+    toast("Nouvelle manche ouverte — les joueurs peuvent miser.", "success");
+  }catch(err){ toast(err.message, "error"); }
 });
 
 document.getElementById("btnCloseSpin")?.addEventListener("click", async (e) => {
   e.target.disabled = true;
-  const snap = await getDoc(tableRef);
-  const table = snap.data();
-  if(!table || table.status !== "betting"){ toast("Aucune manche ouverte.", "warn"); e.target.disabled = false; return; }
-
-  await setDoc(tableRef, { ...table, status: "spinning", updatedAt: serverTimestamp() });
-  const result = Math.floor(Math.random()*37);
-
-  setTimeout(async () => {
-    // Résoudre les mises de la manche
-    const betsQ = query(collection(db, "tables", TABLE_ID, "bets"), where("roundId", "==", table.roundId));
-    const betsSnap = await getDocs(betsQ);
-    const color = numberColor(result);
-    for(const b of betsSnap.docs){
-      const bet = b.data();
-      let win = false, payout = 0;
-      if(bet.betType === "color" && bet.betValue === (color==="red"?"rouge":color==="black"?"noir":"__none__")){ win = true; payout = bet.amount*2; }
-      if(bet.betType === "number" && parseInt(bet.betValue,10) === result){ win = true; payout = bet.amount*36; }
-      if(win){
-        await adjustBalance({ cardId: bet.cardId, amount: payout, type: "gain", gameId: "roulette", note: `Roulette manche #${table.roundId} — numéro ${result}` });
-      }
-    }
-    await setDoc(tableRef, { ...table, status: "result", result, updatedAt: serverTimestamp() });
-  }, 3700);
-
-  toast("Roue lancée !", "info");
+  try{
+    await request("table:roulette:closeAndSpin");
+    toast("Roue lancée !", "info");
+  }catch(err){ toast(err.message, "error"); e.target.disabled = false; }
 });
 
 /* ── Liste publique des mises de la manche en cours ── */
-let currentTable = null;
-let latestBetsSnap = null;
 function betLabel(b){
   if(b.betType === "color") return b.betValue.charAt(0).toUpperCase() + b.betValue.slice(1);
   return "N°" + b.betValue;
 }
-function renderLiveBets(){
+function renderLiveBets(bets){
   const el = document.getElementById("liveBetsList");
   if(!el) return;
-  const bets = (currentTable && latestBetsSnap)
-    ? latestBetsSnap.docs.map(d=>d.data()).filter(b => b.roundId === currentTable.roundId)
-    : [];
   el.innerHTML = bets.length
     ? bets.map(b => `<div class="bet-chip-row"><span>${b.playerName} — ${betLabel(b)}</span><span>${b.amount} 🪙</span></div>`).join('')
     : `<div class="empty-state"><p>Aucune mise pour l'instant.</p></div>`;
 }
 
-/* ── Synchronisation live pour tout le monde ── */
+/* ── Synchronisation live pour tout le monde (état diffusé par le serveur) ── */
 let lastStatus = null;
-onSnapshot(tableRef, (snap) => {
-  const table = snap.data();
-  if(!table) return;
-  currentTable = table;
-  renderLiveBets();
+function applyState(table){
+  renderLiveBets(table.bets);
   const wheel = document.getElementById("wheel");
   const statusLine = document.getElementById("statusLine");
   const resultEl = document.getElementById("resultNumber");
@@ -317,61 +260,54 @@ onSnapshot(tableRef, (snap) => {
   if(table.status === "betting" && lastStatus !== "betting"){
     statusLine.textContent = `Mises ouvertes — Croupier : ${table.croupierName || '—'}`;
     resultEl.textContent = "—"; resultEl.className = "result-number";
+    document.querySelectorAll(".num-cell.winning").forEach(c => c.classList.remove("winning"));
   }
   if(table.status === "spinning" && lastStatus !== "spinning"){
     statusLine.textContent = "La roue tourne…";
     document.getElementById("wheelGlow").classList.add("on");
     wheel.classList.remove("spin"); void wheel.offsetWidth; wheel.classList.add("spin");
-    document.querySelectorAll(".num-cell.winning").forEach(c => c.classList.remove("winning"));
   }
   if(table.status === "result" && lastStatus !== "result"){
     statusLine.textContent = `Résultat — Manche #${table.roundId}`;
     resultEl.textContent = table.result;
-    resultEl.className = "result-number " + numberColor(table.result);
+    const col = numberColor(table.result);
+    resultEl.className = "result-number " + (col === "rouge" ? "red" : col === "noir" ? "black" : "green");
     document.getElementById("wheelGlow").classList.remove("on");
     const winCell = document.querySelector(`.num-cell[data-value="${table.result}"]`);
     if(winCell) winCell.classList.add("winning");
     if(player) checkMyWin(table);
     refreshBalance();
   }
-  if(table.status === "closed"){
+  if(table.status === "closed" || table.status === "waiting"){
     statusLine.textContent = "En attente du Croupier…";
   }
   if(isCroupier){
     const btnNew = document.getElementById("btnNewRound");
     const btnClose = document.getElementById("btnCloseSpin");
-    btnNew.disabled = table.status === "betting" || table.status === "spinning";
-    btnClose.disabled = table.status !== "betting";
+    if(btnNew) btnNew.disabled = table.status === "betting" || table.status === "spinning";
+    if(btnClose) btnClose.disabled = table.status !== "betting";
   }
   lastStatus = table.status;
-});
-
-/* Liste des mises en direct — visible par tous (joueurs, croupier, spectateurs).
-   Bornée aux 50 mises les plus récentes (quota de lectures Firestore) — largement
-   suffisant pour couvrir la manche en cours, qui n'a jamais autant de mises. */
-onSnapshot(query(collection(db, "tables", TABLE_ID, "bets"), orderBy("createdAt","desc"), limit(50)), (snap) => {
-  latestBetsSnap = snap;
-  renderLiveBets();
-});
+}
+on("table:roulette:state", applyState);
+function joinTable(){ request("table:roulette:join").then(res => applyState(res.state)); }
+joinTable();
+onReconnect(joinTable);
 
 /* Détecte si le joueur a gagné sur cette manche pour célébrer localement */
-async function checkMyWin(table){
-  try{
-    const mine = await getDocs(query(collection(db,"tables",TABLE_ID,"bets"), where("roundId","==",table.roundId), where("cardId","==",player.id)));
-    if(mine.empty) return;
-    const color = numberColor(table.result);
-    let won = false;
-    mine.docs.forEach(d => {
-      const bet = d.data();
-      if(bet.betType === "color" && bet.betValue === (color==="red"?"rouge":color==="black"?"noir":"__none__")) won = true;
-      if(bet.betType === "number" && parseInt(bet.betValue,10) === table.result) won = true;
-    });
-    if(won){
-      toast("🎉 Numéro gagnant ! Tes gains sont crédités.", "success");
-      const wheelRect = document.getElementById("wheel").getBoundingClientRect();
-      burst(wheelRect.left + wheelRect.width/2, wheelRect.top + wheelRect.height/2);
-    }
-  }catch(e){ /* silencieux */ }
+function checkMyWin(table){
+  const mine = table.bets.filter(b => b.cardId === player.id);
+  if(!mine.length) return;
+  const color = numberColor(table.result);
+  const won = mine.some(bet =>
+    (bet.betType === "color" && bet.betValue === color) ||
+    (bet.betType === "number" && parseInt(bet.betValue, 10) === table.result)
+  );
+  if(won){
+    toast("🎉 Numéro gagnant ! Tes gains sont crédités.", "success");
+    const wheelRect = document.getElementById("wheel").getBoundingClientRect();
+    burst(wheelRect.left + wheelRect.width/2, wheelRect.top + wheelRect.height/2);
+  }
 }
 </script>
 </body>

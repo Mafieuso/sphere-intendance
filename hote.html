@@ -119,10 +119,10 @@
 import { initFx } from "./assets/js/fx.js";
 import { initUiFx, burst } from "./assets/js/uiFx.js";
 import { toast } from "./assets/js/toast.js";
-import { requireRole, renderStaffBadge, getSession } from "./assets/js/session.js";
+import { requireRole, renderStaffBadge } from "./assets/js/session.js";
 import { findCardBySteamId, createCard, adjustBalance, deleteCard, isExpired, msUntilExpiration, isSuspended, setCardSuspended } from "./assets/js/cards.js";
 import { tokenDisplayHTML, formatYen, tokensToYen, yenToTokens } from "./assets/js/economy.js";
-import { db, collection, query, orderBy, limit, onSnapshot } from "./assets/js/firebase-init.js";
+import { request, on } from "./assets/js/api.js";
 
 initFx();
 initUiFx();
@@ -150,7 +150,7 @@ document.getElementById("btnCreate").addEventListener("click", async () => {
   const playerName = document.getElementById("newPlayerName").value.trim();
   if(!steamId || !playerName) return toast("Steam ID et nom requis.", "warn");
   try{
-    const { id, pin } = await createCard({ steamId, playerName, staff });
+    const { id, pin } = await createCard({ steamId, playerName });
     toast("Carte créée avec succès.", "success");
     document.getElementById("pinRevealBox").innerHTML = `
       <div class="pin-reveal">
@@ -218,7 +218,7 @@ function renderCardResult(card){
 
 async function toggleSuspend(card, suspend){
   try{
-    await setCardSuspended(card.id, suspend, staff);
+    await setCardSuspended(card.id, suspend);
     toast(suspend ? `Carte de ${card.playerName} suspendue.` : `Carte de ${card.playerName} réactivée.`, "success");
     currentCard = await findCardBySteamId(card.steamId);
     renderCardResult(currentCard);
@@ -232,10 +232,7 @@ async function doTx(cardId, sign, evt){
   const note = document.getElementById("txNote").value.trim();
   if(!amountRaw || amountRaw <= 0) return toast("Montant invalide.", "warn");
   try{
-    const balanceAfter = await adjustBalance({
-      cardId, amount: amountRaw * sign, type: sign > 0 ? "depot" : "retrait",
-      staff, note
-    });
+    const balanceAfter = await adjustBalance({ cardId, amount: amountRaw * sign, note });
     toast(`${sign>0?'Dépôt':'Retrait'} effectué. Nouveau solde : ${balanceAfter} 🪙 (${formatYen(tokensToYen(balanceAfter))})`, "success");
     if(sign > 0 && evt){ burst(evt.clientX, evt.clientY); }
     currentCard = await findCardBySteamId(currentCard.steamId);
@@ -254,7 +251,7 @@ function confirmDeleteCard(card){
 document.getElementById("btnConfirmDelete").addEventListener("click", async () => {
   if(!pendingDeleteCard) return;
   try{
-    await deleteCard(pendingDeleteCard.id, pendingDeleteCard.steamId, staff);
+    await deleteCard(pendingDeleteCard.id);
     toast("Carte et historique supprimés.", "success");
     document.getElementById("modalDeleteCard").classList.remove("open");
     document.getElementById("cardResultBox").innerHTML = "";
@@ -309,28 +306,30 @@ document.getElementById("cardListFilter").addEventListener("input", (e) => {
   cardListFilterText = e.target.value.trim();
   renderCardList();
 });
-onSnapshot(query(collection(db, "playerCards"), orderBy("lastTransactionAt", "desc")), (snap) => {
-  allCards = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  renderCardList();
-});
+on("cards:list:update", (cards) => { allCards = cards; renderCardList(); });
+request("cards:list:subscribe").then(res => { allCards = res.cards; renderCardList(); });
 
 /* Flux de transactions récentes en direct */
-const q = query(collection(db, "transactions"), orderBy("createdAt", "desc"), limit(20));
-onSnapshot(q, (snap) => {
+function renderTxLog(transactions){
   const el = document.getElementById("txLog");
-  if(snap.empty){ el.innerHTML = `<div class="empty-state"><p>Aucune transaction.</p></div>`; return; }
+  if(!transactions.length){ el.innerHTML = `<div class="empty-state"><p>Aucune transaction.</p></div>`; return; }
   const typeColor = { depot:'#1fae7c', retrait:'#c9282f', mise:'#c9a227', gain:'#1fae7c', perte:'#c9282f' };
-  el.innerHTML = `<div class="log-list">${snap.docs.map(d => {
-    const t = d.data();
+  el.innerHTML = `<div class="log-list">${transactions.map(t => {
     const c = typeColor[t.type] || '#c9a227';
-    const date = t.createdAt?.toDate ? t.createdAt.toDate().toLocaleString('fr-FR') : '—';
+    const date = t.createdAt ? new Date(t.createdAt).toLocaleString('fr-FR') : '—';
     return `<div class="log-entry" style="--lc:${c}">
       <span class="log-action">${t.type}</span>
       <span class="log-detail"><strong>${t.playerName||t.steamId||'?'}</strong> — ${t.amount>0?'+':''}${t.amount} 🪙 (${formatYen(tokensToYen(t.amount))}) ${t.staffName?('· par '+t.staffName):''}</span>
       <span class="log-date">${date}</span>
     </div>`;
   }).join('')}</div>`;
+}
+let recentTx = [];
+on("transactions:new", (t) => {
+  recentTx = [t, ...recentTx].slice(0, 20);
+  renderTxLog(recentTx);
 });
+request("transactions:subscribe").then(res => { recentTx = res.transactions; renderTxLog(recentTx); });
 </script>
 </body>
 </html>

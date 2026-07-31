@@ -98,7 +98,8 @@ import { initFx } from "../assets/js/fx.js";
 import { initUiFx, burst, animateTokenPill } from "../assets/js/uiFx.js";
 import { toast } from "../assets/js/toast.js";
 import { requirePlayerCard } from "../assets/js/playerSession.js";
-import { getCard, adjustBalance, isExpired, isSuspended } from "../assets/js/cards.js";
+import { getCard } from "../assets/js/cards.js";
+import { request } from "../assets/js/api.js";
 import { tokenDisplayHTML, formatYen, tokensToYen } from "../assets/js/economy.js";
 
 initFx();
@@ -148,11 +149,6 @@ document.getElementById("btnPlay").addEventListener("click", async () => {
   const btnPlay = document.getElementById("btnPlay");
   btnPlay.disabled = true;
 
-  const card = await getCard(session.id);
-  if(isExpired(card)){ toast("Carte expirée — repasse à la caisse.", "error"); playing = false; btnPlay.disabled = false; return; }
-  if(isSuspended(card)){ toast("Carte suspendue — contacte l'Hôte.", "error"); playing = false; btnPlay.disabled = false; return; }
-  if(card.balance < bet){ toast("Solde de jetons insuffisant.", "warn"); playing = false; btnPlay.disabled = false; return; }
-
   const banner = document.getElementById("resultBanner");
   banner.className = "result-banner";
   const die = document.getElementById("die");
@@ -161,18 +157,23 @@ document.getElementById("btnPlay").addEventListener("click", async () => {
   die.classList.remove("rolling","win-bounce"); void die.offsetWidth; die.classList.add("rolling");
   die.textContent = "?";
 
-  const roll = Math.floor(Math.random()*6) + 1;
-  const win = roll === choice;
-  const net = win ? bet * 4 : -bet;
+  /* Tirage côté serveur — le navigateur ne fait qu'afficher le résultat renvoyé. */
+  let res;
+  try{
+    res = await request("game:dice:play", { choice, bet });
+  }catch(e){
+    toast(e.message, "error");
+    die.classList.remove("rolling");
+    glow.classList.remove("on");
+    playing = false; btnPlay.disabled = false;
+    return;
+  }
+  const { roll, win, net, balanceAfter } = res;
 
   setTimeout(async () => {
     die.textContent = roll;
     glow.classList.remove("on");
     try{
-      const balanceAfter = await adjustBalance({
-        cardId: session.id, amount: net, type: win ? "gain" : "perte",
-        gameId: "dice", note: `Mise ${bet} jeton(s) sur ${choice}, résultat ${roll}`
-      });
       banner.classList.add(win ? "win" : "loss");
       requestAnimationFrame(() => banner.classList.add("show"));
       banner.innerHTML = win

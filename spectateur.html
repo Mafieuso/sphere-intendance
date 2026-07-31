@@ -49,29 +49,14 @@
 <script type="module">
 import { initFx } from "./assets/js/fx.js";
 import { initUiFx, staggerIn } from "./assets/js/uiFx.js";
-import { db, collection, query, orderBy, limit, onSnapshot } from "./assets/js/firebase-init.js";
+import { request, on } from "./assets/js/api.js";
 import { formatYen, tokensToYen } from "./assets/js/economy.js";
 initFx();
 initUiFx();
 staggerIn('.table-card');
 
 const MEDALS = ["🥇","🥈","🥉"];
-/* Bornée aux 800 transactions les plus récentes, tous types confondus (quota de
-   lectures Firestore — un filtre "type == gain" combiné à un tri par date
-   nécessiterait un index composite). Le filtre "gain" se fait côté client :
-   le classement reste représentatif sans relire tout l'historique à chaque visite. */
-const gainsQ = query(collection(db, "transactions"), orderBy("createdAt","desc"), limit(800));
-onSnapshot(gainsQ, (snap) => {
-  const totals = new Map();
-  snap.docs.forEach(d => {
-    const t = d.data();
-    if(t.type !== "gain") return;
-    const entry = totals.get(t.cardId) || { playerName: t.playerName, total: 0 };
-    entry.total += (t.amount || 0);
-    entry.playerName = t.playerName;
-    totals.set(t.cardId, entry);
-  });
-  const top = [...totals.values()].sort((a,b) => b.total - a.total).slice(0, 3);
+function renderLeaderboard(top){
   const el = document.getElementById("leaderboard");
   if(!top.length){ el.innerHTML = `<div class="empty-state"><p>Aucun gain enregistré pour l'instant.</p></div>`; return; }
   el.innerHTML = `<div class="leaderboard-list">${top.map((w,i) => `
@@ -80,7 +65,9 @@ onSnapshot(gainsQ, (snap) => {
       <span class="lb-name">${w.playerName}</span>
       <span class="lb-amount">${formatYen(tokensToYen(w.total))}</span>
     </div>`).join('')}</div>`;
-});
+}
+on("leaderboard:update", renderLeaderboard);
+request("leaderboard:subscribe").then(res => renderLeaderboard(res.leaderboard));
 </script>
 </body>
 </html>

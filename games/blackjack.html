@@ -118,17 +118,12 @@ import { initUiFx, burst, animateTokenPill } from "../assets/js/uiFx.js";
 import { toast } from "../assets/js/toast.js";
 import { getSession } from "../assets/js/session.js";
 import { getPlayerSession } from "../assets/js/playerSession.js";
-import { getCard, adjustBalance, isExpired, isSuspended } from "../assets/js/cards.js";
-import { tokenDisplayHTML, formatYen, tokensToYen } from "../assets/js/economy.js";
-import {
-  db, doc, getDoc, setDoc, collection, addDoc, updateDoc, query, where, orderBy, limit, getDocs, onSnapshot, serverTimestamp
-} from "../assets/js/firebase-init.js";
+import { getCard } from "../assets/js/cards.js";
+import { tokenDisplayHTML } from "../assets/js/economy.js";
+import { request, on, onReconnect } from "../assets/js/api.js";
 
 initFx();
 initUiFx();
-const TABLE_ID = "blackjack-1";
-const tableRef = doc(db, "tables", TABLE_ID);
-const seatsCol = collection(db, "tables", TABLE_ID, "seats");
 
 const staff = getSession();
 const player = getPlayerSession();
@@ -151,93 +146,41 @@ async function refreshBalance(){
   myBalance = newBalance;
 }
 
-const RANKS = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
-const SUITS = ['♠','♥','♦','♣'];
-function randomCard(){ return { rank: RANKS[Math.floor(Math.random()*RANKS.length)], suit: SUITS[Math.floor(Math.random()*SUITS.length)] }; }
-function cardValue(rank){ if(rank==='A') return 11; if(['J','Q','K'].includes(rank)) return 10; return parseInt(rank,10); }
-function handTotal(hand){
-  let total = hand.reduce((s,c)=>s+cardValue(c.rank),0);
-  let aces = hand.filter(c=>c.rank==='A').length;
-  while(total > 21 && aces > 0){ total -= 10; aces--; }
-  return total;
-}
-function renderHand(el, hand, hideSecond){
-  el.innerHTML = hand.map((c,i) => {
-    if(hideSecond && i === 1) return `<div class="card hidden">?</div>`;
+/* Le tirage et le calcul des totaux ont lieu côté serveur désormais — le
+   client se contente d'afficher ce qu'on lui envoie. */
+function renderHand(el, hand){
+  el.innerHTML = hand.map(c => {
+    if(c.hidden) return `<div class="card hidden">?</div>`;
     const red = c.suit === '♥' || c.suit === '♦';
     return `<div class="card ${red?'red':''}">${c.rank}<span style="font-size:.75rem">${c.suit}</span></div>`;
   }).join('');
 }
 
-async function ensureTable(){
-  const snap = await getDoc(tableRef);
-  if(!snap.exists()) await setDoc(tableRef, { status:"betting", roundId:1, dealerHand:[], hideSecond:true, updatedAt: serverTimestamp() });
-}
-ensureTable();
-
 document.getElementById("btnNewRound")?.addEventListener("click", async (e) => {
   e.target.disabled = true;
-  const snap = await getDoc(tableRef);
-  const t = snap.data() || { roundId: 0 };
-  await setDoc(tableRef, { status:"betting", roundId:(t.roundId||0)+1, dealerHand:[], hideSecond:true, croupierName: staff.name, updatedAt: serverTimestamp() });
-  toast("Nouvelle manche — les joueurs peuvent rejoindre.", "success");
+  try{
+    await request("table:blackjack:newRound");
+    toast("Nouvelle manche — les joueurs peuvent rejoindre.", "success");
+  }catch(err){ toast(err.message, "error"); }
 });
 
 document.getElementById("btnDeal")?.addEventListener("click", async (e) => {
   e.target.disabled = true;
   try{
-  const snap = await getDoc(tableRef);
-  const t = snap.data();
-  if(!t || t.status !== "betting") return toast("Ouvre d'abord les mises.", "warn");
-  const seatsSnap = await getDocs(query(seatsCol, where("roundId","==",t.roundId)));
-  if(seatsSnap.empty) return toast("Aucun joueur à la table.", "warn");
-  for(const s of seatsSnap.docs){
-    await updateDoc(doc(seatsCol, s.id), { hand: [randomCard(), randomCard()], status: "playing" });
-  }
-  await setDoc(tableRef, { ...t, status:"playing", dealerHand:[randomCard(), randomCard()], hideSecond:true, updatedAt: serverTimestamp() });
-  toast("Cartes distribuées.", "success");
-  }finally{ e.target.disabled = false; }
+    await request("table:blackjack:deal");
+    toast("Cartes distribuées.", "success");
+  }catch(err){ toast(err.message, "error"); }
 });
 
 document.getElementById("btnReveal")?.addEventListener("click", async (e) => {
   e.target.disabled = true;
-  const snap = await getDoc(tableRef);
-  const t = snap.data();
-  if(!t || t.status !== "playing"){ toast("La manche n'est pas en cours.", "warn"); e.target.disabled = false; return; }
-
-  const seatsSnap = await getDocs(query(seatsCol, where("roundId","==",t.roundId)));
-  const stillPlaying = seatsSnap.docs.some(d => d.data().status === "playing");
-  if(stillPlaying){
-    toast("Certains joueurs n'ont pas fini leur tour (Tirer/Rester).", "warn");
+  try{
+    await request("table:blackjack:reveal");
+    toast("Manche résolue.", "success");
+  }catch(err){
+    toast(err.message, "error");
     e.target.disabled = false;
-    return;
   }
-
-  let dealerHand = [...t.dealerHand];
-  while(handTotal(dealerHand) < 17) dealerHand.push(randomCard());
-  const dealerTotal = handTotal(dealerHand);
-
-  for(const s of seatsSnap.docs){
-    const seat = s.data();
-    const pTotal = handTotal(seat.hand || []);
-    let outcome = "lose";
-    if(pTotal > 21){ outcome = "lose"; }
-    else if(dealerTotal > 21){ outcome = "win"; }
-    else if(pTotal > dealerTotal){ outcome = "win"; }
-    else if(pTotal === dealerTotal){ outcome = "push"; }
-    else{ outcome = "lose"; }
-
-    if(outcome === "win"){
-      const blackjack = pTotal === 21 && seat.hand.length === 2;
-      const payout = blackjack ? Math.floor(seat.bet * 2.5) : seat.bet * 2;
-      await adjustBalance({ cardId: seat.cardId, amount: payout, type: "gain", gameId: "blackjack", note: `Blackjack manche #${t.roundId} — ${pTotal} vs ${dealerTotal}` });
-    } else if(outcome === "push"){
-      await adjustBalance({ cardId: seat.cardId, amount: seat.bet, type: "gain", gameId: "blackjack", note: `Égalité (push) manche #${t.roundId}` });
-    }
-    await updateDoc(doc(seatsCol, s.id), { status: outcome });
-  }
-  await setDoc(tableRef, { ...t, status:"result", dealerHand, hideSecond:false, updatedAt: serverTimestamp() });
-  toast("Manche résolue.", "success");
 });
 
 let joining = false;
@@ -249,19 +192,7 @@ document.getElementById("btnJoin")?.addEventListener("click", async () => {
   const btnJoin = document.getElementById("btnJoin");
   btnJoin.disabled = true;
   try{
-    const snap = await getDoc(tableRef);
-    const t = snap.data();
-    if(!t || t.status !== "betting") return toast("Les mises ne sont pas ouvertes.", "warn");
-    const card = await getCard(player.id);
-    if(isExpired(card)) return toast("Carte expirée.", "error");
-    if(isSuspended(card)) return toast("Carte suspendue — contacte l'Hôte.", "error");
-    if(card.balance < amount) return toast("Solde insuffisant.", "warn");
-
-    const existing = await getDocs(query(seatsCol, where("roundId","==",t.roundId), where("cardId","==",player.id)));
-    if(!existing.empty) return toast("Tu es déjà à la table pour cette manche.", "warn");
-
-    await adjustBalance({ cardId: player.id, amount: -amount, type: "mise", gameId: "blackjack", note: `Mise ${amount} jeton(s) au Blackjack` });
-    await addDoc(seatsCol, { roundId: t.roundId, cardId: player.id, steamId: player.steamId, playerName: player.playerName, bet: amount, hand: [], status: "waiting", createdAt: serverTimestamp() });
+    await request("table:blackjack:sit", { amount });
     toast("Place à la table réservée.", "success");
     refreshBalance();
   }catch(e){
@@ -283,24 +214,12 @@ async function actOnHand(action){
   const btnStand = document.getElementById("btnStand");
   btnHit.disabled = true; btnStand.disabled = true;
   try{
-  const snap = await getDoc(tableRef);
-  const t = snap.data();
-  if(!t || t.status !== "playing") return;
-  const mine = await getDocs(query(seatsCol, where("roundId","==",t.roundId), where("cardId","==",player.id)));
-  if(mine.empty) return;
-  const seatDoc = mine.docs[0];
-  const seat = seatDoc.data();
-  if(seat.status !== "playing") return;
-
-  if(action === "hit"){
-    const hand = [...seat.hand, randomCard()];
-    const total = handTotal(hand);
-    await updateDoc(doc(seatsCol, seatDoc.id), { hand, status: total > 21 ? "bust" : "playing" });
-    if(total > 21) toast("Bust ! Tu dépasses 21.", "error");
-  } else {
-    await updateDoc(doc(seatsCol, seatDoc.id), { status: "stand" });
-    toast("Tu restes sur ta main.", "info");
-  }
+    const res = await request(action === "hit" ? "table:blackjack:hit" : "table:blackjack:stand");
+    if(action === "hit"){
+      if(res.bust) toast("Bust ! Tu dépasses 21.", "error");
+    }else{
+      toast("Tu restes sur ta main.", "info");
+    }
   }catch(e){
     toast(e.message, "error");
   }finally{
@@ -309,14 +228,11 @@ async function actOnHand(action){
   }
 }
 
-let currentTable = null;
-onSnapshot(tableRef, (snap) => {
-  const t = snap.data();
-  if(!t) return;
-  currentTable = t;
+const celebratedSeats = new Set();
+function applyState(t){
   document.getElementById("statusLabel").textContent = `Manche #${t.roundId} — ${({betting:'Mises ouvertes',playing:'En cours',result:'Résultat'})[t.status] || t.status}`;
-  renderHand(document.getElementById("dealerHand"), t.dealerHand || [], t.hideSecond && (t.dealerHand||[]).length>1);
-  document.getElementById("dealerTotal").textContent = t.hideSecond ? "" : `Total : ${handTotal(t.dealerHand||[])}`;
+  renderHand(document.getElementById("dealerHand"), t.dealerHand || []);
+  document.getElementById("dealerTotal").textContent = t.dealerTotal != null ? `Total : ${t.dealerTotal}` : "";
   const joinRow = document.getElementById("joinRow");
   const actionRow = document.getElementById("actionRow");
   if(joinRow) joinRow.style.display = t.status === "betting" ? "flex" : "none";
@@ -329,38 +245,33 @@ onSnapshot(tableRef, (snap) => {
     if(btnDeal) btnDeal.disabled = t.status !== "betting";
     if(btnReveal) btnReveal.disabled = t.status !== "playing";
   }
-  renderSeats();
-});
-/* Borné aux 30 sièges les plus récents (quota de lectures Firestore) — largement
-   suffisant pour une manche en cours, qui ne compte jamais autant de joueurs. */
-onSnapshot(query(seatsCol, orderBy("createdAt","desc"), limit(30)), () => renderSeats());
+  renderSeats(t.seats);
+}
+on("table:blackjack:state", applyState);
+function joinTable(){ request("table:blackjack:join").then(res => applyState(res.state)); }
+joinTable();
+onReconnect(joinTable);
 
-const celebratedSeats = new Set();
-async function renderSeats(){
-  if(!currentTable) return;
-  const snap = await getDocs(query(seatsCol, where("roundId","==",currentTable.roundId)));
+function renderSeats(seats){
   const grid = document.getElementById("seatsGrid");
-  if(snap.empty){ grid.innerHTML = `<div class="empty-state"><p>Aucun joueur à la table.</p></div>`; return; }
-  grid.innerHTML = snap.docs.map(d => {
-    const s = d.data();
-    const total = handTotal(s.hand || []);
+  if(!seats.length){ grid.innerHTML = `<div class="empty-state"><p>Aucun joueur à la table.</p></div>`; return; }
+  grid.innerHTML = seats.map(s => {
     const mine = player && s.cardId === player.id;
     const statusText = { waiting:'En attente', playing:'À toi de jouer', bust:'Bust !', stand:'Reste', win:'Gagné !', lose:'Perdu', push:'Égalité' }[s.status] || s.status;
-    return `<div class="seat ${mine?'me':''} ${s.status==='win'?'win':''}">
+    return `<div class="seat ${mine?'me':''} ${s.status==='win'?'win':''}" data-id="${s.id}">
       <div class="seat-name">${s.playerName} — ${tokenDisplayHTML(s.bet, {small:true})}</div>
-      <div class="hand">${(s.hand||[]).map(c => { const red=c.suit==='♥'||c.suit==='♦'; return `<div class="card ${red?'red':''}">${c.rank}<span style="font-size:.7rem">${c.suit}</span></div>`; }).join('')}</div>
-      ${s.hand && s.hand.length ? `<div class="hand-total">Total : ${total}</div>` : ''}
+      <div class="hand">${(s.hand||[]).map(c => { if(c.hidden) return `<div class="card hidden">?</div>`; const red=c.suit==='♥'||c.suit==='♦'; return `<div class="card ${red?'red':''}">${c.rank}<span style="font-size:.7rem">${c.suit}</span></div>`; }).join('')}</div>
+      ${s.hand && s.hand.length ? `<div class="hand-total">Total : ${s.total}</div>` : ''}
       <div class="seat-status ${s.status}">${statusText}</div>
     </div>`;
   }).join('');
 
-  snap.docs.forEach(d => {
-    const s = d.data();
+  seats.forEach(s => {
     const mine = player && s.cardId === player.id;
-    if(mine && s.status === "win" && !celebratedSeats.has(d.id)){
-      celebratedSeats.add(d.id);
+    if(mine && s.status === "win" && !celebratedSeats.has(s.id)){
+      celebratedSeats.add(s.id);
       toast(`🎉 Blackjack gagné !`, "success");
-      const seatEl = [...grid.querySelectorAll(".seat.me")][0];
+      const seatEl = grid.querySelector(`.seat[data-id="${s.id}"]`);
       if(seatEl){ const r = seatEl.getBoundingClientRect(); burst(r.left + r.width/2, r.top + r.height/2); }
       refreshBalance();
     }

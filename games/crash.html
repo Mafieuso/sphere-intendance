@@ -106,19 +106,18 @@ import { initUiFx, burst, animateTokenPill } from "../assets/js/uiFx.js";
 import { toast } from "../assets/js/toast.js";
 import { getSession } from "../assets/js/session.js";
 import { getPlayerSession } from "../assets/js/playerSession.js";
-import { getCard, adjustBalance, isExpired, isSuspended } from "../assets/js/cards.js";
+import { getCard } from "../assets/js/cards.js";
 import { tokenDisplayHTML, formatYen, tokensToYen } from "../assets/js/economy.js";
-import {
-  db, doc, getDoc, setDoc, collection, addDoc, updateDoc, query, where, orderBy, limit, getDocs,
-  onSnapshot, runTransaction, serverTimestamp
-} from "../assets/js/firebase-init.js";
+import { request, on, onReconnect } from "../assets/js/api.js";
 
 initFx();
 initUiFx();
 
-const TABLE_ID = "crash-1";
+/* Le point de crash n'est plus jamais connu du navigateur avant que le crash
+   ne survienne réellement — le serveur calcule et diffuse le multiplicateur
+   courant, sans révéler la cible. MAX_MULTIPLIER ici sert uniquement à
+   l'affichage (position de la fusée), le plafond réel est appliqué côté serveur. */
 const MAX_MULTIPLIER = 10;
-const tableRef = doc(db, "tables", TABLE_ID);
 
 const staff = getSession();
 const player = getPlayerSession();
@@ -157,76 +156,34 @@ function spawnEmber(stage){
   setTimeout(() => e.remove(), 1400);
 }
 
-/* Point de crash plafonné à ×10 maximum.
-   La distribution est volontairement resserrée vers le bas (exposant 1.6 sur le tirage)
-   pour que la fusée monte haut moins souvent — moins de tentation à attendre trop
-   longtemps avant d'encaisser, donc moins de mises perdues sur un excès de confiance. */
-function genCrashPoint(){
-  const r = Math.pow(Math.random(), 1.6);
-  const raw = Math.max(1, Math.floor((0.94 / (1 - r)) * 100) / 100);
-  return Math.min(MAX_MULTIPLIER, raw);
-}
-function multiplierAt(elapsedSec){
-  return Math.min(MAX_MULTIPLIER, 1 + Math.pow(elapsedSec, 1.32) * 0.09);
-}
-
-let myBetId = null, myCashedOut = false, animTimer = null, currentTable = null;
-
-async function ensureTable(){
-  const snap = await getDoc(tableRef);
-  if(!snap.exists()){
-    await setDoc(tableRef, { status: "waiting", roundId: 1, crashPoint: genCrashPoint(), startedAt: null, updatedAt: serverTimestamp() });
-  }
-}
-ensureTable();
-
 /* ── Contrôles Croupier ── */
 document.getElementById("btnNewRound")?.addEventListener("click", async (e) => {
   e.target.disabled = true;
-  let opened = false;
-  await runTransaction(db, async (tx) => {
-    const snap = await tx.get(tableRef);
-    const t = snap.data();
-    if(t && (t.status === "running" || t.status === "waiting")) return; // manche déjà en cours
-    tx.set(tableRef, { status: "waiting", roundId: (t?.roundId||0) + 1, crashPoint: genCrashPoint(), startedAt: null, croupierName: staff.name, updatedAt: serverTimestamp() });
-    opened = true;
-  });
-  toast(opened ? "Nouvelle manche ouverte — placez vos mises." : "Une manche est déjà en cours.", opened ? "success" : "warn");
+  try{
+    await request("table:crash:newRound");
+    toast("Nouvelle manche ouverte — placez vos mises.", "success");
+  }catch(err){ toast(err.message, "warn"); }
 });
 
 document.getElementById("btnLaunch")?.addEventListener("click", async (e) => {
   e.target.disabled = true;
-  const snap = await getDoc(tableRef);
-  const t = snap.data();
-  if(!t || t.status !== "waiting") return;
-  await setDoc(tableRef, { ...t, status: "running", startedAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  try{
+    await request("table:crash:launch");
+  }catch(err){ toast(err.message, "error"); }
 });
 
 /* ── Joueur : miser ── */
 let joiningCrash = false;
 document.getElementById("btnJoin")?.addEventListener("click", async () => {
   if(joiningCrash) return;
-  if(!currentTable || currentTable.status !== "waiting") return toast("Attends que le Croupier ouvre les mises.", "warn");
   const amount = parseInt(document.getElementById("betAmount").value, 10);
   if(!amount || amount <= 0) return toast("Mise invalide.", "warn");
   if(amount > 10) return toast("Mise maximum : 10 jetons.", "warn");
-  if(myBetId) return toast("Tu as déjà misé sur cette manche.", "warn");
   joiningCrash = true;
   const btnJoin = document.getElementById("btnJoin");
   btnJoin.disabled = true;
   try{
-    const card = await getCard(player.id);
-    if(isExpired(card)) return toast("Carte expirée.", "error");
-    if(isSuspended(card)) return toast("Carte suspendue — contacte l'Hôte.", "error");
-    if(card.balance < amount) return toast("Solde insuffisant.", "warn");
-
-    await adjustBalance({ cardId: player.id, amount: -amount, type: "mise", gameId: "crash", note: `Mise ${amount} jeton(s) — Ascension Fulgurante` });
-    const ref = await addDoc(collection(db, "tables", TABLE_ID, "bets"), {
-      roundId: currentTable.roundId, cardId: player.id, steamId: player.steamId, playerName: player.playerName,
-      amount, cashedOut: false, cashOutMultiplier: null, createdAt: serverTimestamp()
-    });
-    myBetId = ref.id; myCashedOut = false;
-    updateCashoutVisibility();
+    await request("table:crash:bet", { amount });
     toast("Mise engagée pour la prochaine ascension.", "success");
     refreshBalance();
   }catch(e){
@@ -239,20 +196,11 @@ document.getElementById("btnJoin")?.addEventListener("click", async () => {
 
 /* ── Joueur : encaisser ── */
 document.getElementById("btnCashout")?.addEventListener("click", async () => {
-  if(!myBetId || myCashedOut || !currentTable || currentTable.status !== "running") return;
-  const elapsed = (Date.now() - currentTable.startedAt.toMillis()) / 1000;
-  const mult = multiplierAt(elapsed);
-  if(mult >= currentTable.crashPoint) return; // déjà crashé
-  myCashedOut = true;
-  updateCashoutVisibility();
+  const btnCashout = document.getElementById("btnCashout");
+  btnCashout.disabled = true;
   try{
-    const bet = (await getDocs(query(collection(db,"tables",TABLE_ID,"bets"), where("roundId","==",currentTable.roundId), where("cardId","==",player.id)))).docs[0];
-    if(!bet){ myCashedOut = false; updateCashoutVisibility(); return; }
-    const amount = bet.data().amount;
-    const payout = Math.floor(amount * mult);
-    await updateDoc(doc(db,"tables",TABLE_ID,"bets",bet.id), { cashedOut: true, cashOutMultiplier: mult });
-    await adjustBalance({ cardId: player.id, amount: payout, type: "gain", gameId: "crash", note: `Encaissé à ${mult.toFixed(2)}×` });
-    toast(`Encaissé à ${mult.toFixed(2)}× — +${payout} 🪙 (${formatYen(tokensToYen(payout))})`, "success");
+    const res = await request("table:crash:cashout");
+    toast(`Encaissé à ${res.multiplier.toFixed(2)}× — +${res.payout} 🪙 (${formatYen(tokensToYen(res.payout))})`, "success");
     const multEl = document.getElementById("crashMult");
     multEl.classList.add("cashed");
     const r = multEl.getBoundingClientRect();
@@ -260,131 +208,80 @@ document.getElementById("btnCashout")?.addEventListener("click", async () => {
     refreshBalance();
   }catch(e){
     toast(e.message, "error");
+  }finally{
+    btnCashout.disabled = false;
   }
 });
 
-function updateCashoutVisibility(){
+function updateCashoutVisibility(table){
   const btnCashout = document.getElementById("btnCashout");
-  if(!btnCashout) return;
-  btnCashout.style.display = (player && currentTable?.status === "running" && myBetId && !myCashedOut) ? "block" : "none";
+  if(!btnCashout || !player) return;
+  const mine = table.bets.find(b => b.cardId === player.id);
+  btnCashout.style.display = (table.status === "running" && mine && !mine.cashedOut) ? "block" : "none";
 }
 
-/* Resynchronise myBetId/myCashedOut depuis Firestore (fiabilise le bouton Encaisser
-   après un rechargement de page ou une reconnexion en cours de manche). */
-async function syncMyBet(){
-  if(!player || !currentTable) return;
-  try{
-    const snap = await getDocs(query(collection(db,"tables",TABLE_ID,"bets"), where("roundId","==",currentTable.roundId), where("cardId","==",player.id)));
-    if(snap.empty){ myBetId = null; myCashedOut = false; }
-    else{
-      const b = snap.docs[0];
-      myBetId = b.id;
-      myCashedOut = !!b.data().cashedOut;
-    }
-  }catch(e){ /* silencieux */ }
-  updateCashoutVisibility();
-}
-
-/* ── Boucle d'animation locale du multiplicateur ── */
-function stopAnim(){ if(animTimer){ cancelAnimationFrame(animTimer); animTimer = null; } }
-function startAnim(startedAtMs, crashPoint){
-  stopAnim();
-  const el = document.getElementById("crashMult");
-  const rocket = document.getElementById("rocket");
-  const stage = document.getElementById("crashStage");
-  el.classList.remove("crashed","cashed");
-  rocket.style.display = "block";
-  let lastEmber = 0;
-  function tick(now){
-    const elapsed = (Date.now() - startedAtMs) / 1000;
-    const mult = multiplierAt(elapsed);
-    if(mult >= crashPoint){
-      el.textContent = crashPoint.toFixed(2) + "×";
-      el.classList.add("crashed");
-      rocket.style.display = "none";
-      stage.classList.add("crashed-fx");
-      setTimeout(() => stage.classList.remove("crashed-fx"), 500);
-      handleLocalCrash(crashPoint);
-      return;
-    }
-    el.textContent = mult.toFixed(2) + "×";
-    const progress = Math.min(1, (mult - 1) / (MAX_MULTIPLIER - 1));
-    rocket.style.left = (8 + progress * 78) + "%";
-    rocket.style.bottom = (10 + progress * 150) + "px";
-    if(!lastEmber || now - lastEmber > 90){ lastEmber = now; spawnEmber(stage); }
-    animTimer = requestAnimationFrame(tick);
-  }
-  animTimer = requestAnimationFrame(tick);
-}
-
-let crashHandled = false;
-async function handleLocalCrash(crashPoint){
-  if(crashHandled) return; crashHandled = true;
-  try{
-    await runTransaction(db, async (tx) => {
-      const snap = await tx.get(tableRef);
-      const t = snap.data();
-      if(!t || t.status !== "running") return;
-      tx.update(tableRef, { status: "crashed", updatedAt: serverTimestamp() });
-    });
-  }catch(e){ /* un autre client a peut-être déjà résolu le crash */ }
-}
-
-/* ── Sync live table ── */
+/* ── Rendu à chaque tick diffusé par le serveur (le multiplicateur n'est
+   jamais calculé côté client — juste affiché tel que reçu) ── */
 let lastStatus = null;
-onSnapshot(tableRef, (snap) => {
-  const t = snap.data();
-  if(!t) return;
-  const prevRound = currentTable?.roundId;
-  currentTable = t;
+let lastEmberAt = 0;
+function applyState(t){
   const statusLine = document.getElementById("crashStatus");
   const btnNew = document.getElementById("btnNewRound");
   const btnLaunch = document.getElementById("btnLaunch");
   const btnJoin = document.getElementById("btnJoin");
-
-  if(t.roundId !== prevRound){ myBetId = null; myCashedOut = false; crashHandled = false; }
+  const el = document.getElementById("crashMult");
+  const rocket = document.getElementById("rocket");
+  const stage = document.getElementById("crashStage");
 
   if(t.status === "waiting"){
-    stopAnim();
-    document.getElementById("crashMult").textContent = "1.00×";
-    document.getElementById("crashMult").classList.remove("crashed","cashed");
-    document.getElementById("rocket").style.display = "none";
+    el.textContent = "1.00×";
+    el.classList.remove("crashed","cashed");
+    rocket.style.display = "none";
     statusLine.textContent = `Mises ouvertes — Croupier : ${t.croupierName || '—'}`;
     if(btnJoin) btnJoin.disabled = false;
-    if(isCroupier){ btnNew.style.display = "none"; btnLaunch.style.display = "inline-flex"; btnLaunch.disabled = false; }
+    if(isCroupier && btnNew && btnLaunch){ btnNew.style.display = "none"; btnLaunch.style.display = "inline-flex"; btnLaunch.disabled = false; }
   }
   if(t.status === "running"){
-    if(lastStatus !== "running") statusLine.textContent = "En vol… encaisse avant le crash !";
-    if(isCroupier){ btnNew.style.display = "none"; btnLaunch.style.display = "none"; }
+    if(lastStatus !== "running"){ statusLine.textContent = "En vol… encaisse avant le crash !"; rocket.style.display = "block"; }
+    if(isCroupier && btnNew && btnLaunch){ btnNew.style.display = "none"; btnLaunch.style.display = "none"; }
     if(btnJoin) btnJoin.disabled = true;
-    if(t.startedAt) startAnim(t.startedAt.toMillis(), t.crashPoint);
-    if(player) syncMyBet();
+    el.textContent = t.multiplier.toFixed(2) + "×";
+    const progress = Math.min(1, (t.multiplier - 1) / (MAX_MULTIPLIER - 1));
+    rocket.style.left = (8 + progress * 78) + "%";
+    rocket.style.bottom = (10 + progress * 150) + "px";
+    const now = performance.now();
+    if(!lastEmberAt || now - lastEmberAt > 90){ lastEmberAt = now; spawnEmber(stage); }
   }
   if(t.status === "crashed"){
-    stopAnim();
-    statusLine.textContent = `Crash à ${t.crashPoint.toFixed(2)}× — Manche #${t.roundId}`;
-    document.getElementById("crashMult").textContent = t.crashPoint.toFixed(2) + "×";
-    document.getElementById("crashMult").classList.add("crashed");
-    if(isCroupier){ btnNew.style.display = "inline-flex"; btnLaunch.style.display = "none"; }
+    if(lastStatus !== "crashed"){
+      el.textContent = t.multiplier.toFixed(2) + "×";
+      el.classList.add("crashed");
+      rocket.style.display = "none";
+      stage.classList.add("crashed-fx");
+      setTimeout(() => stage.classList.remove("crashed-fx"), 500);
+      statusLine.textContent = `Crash à ${t.multiplier.toFixed(2)}× — Manche #${t.roundId}`;
+      refreshBalance();
+    }
+    if(isCroupier && btnNew && btnLaunch){ btnNew.style.display = "inline-flex"; btnLaunch.style.display = "none"; }
     if(btnJoin) btnJoin.disabled = true;
-    updateCashoutVisibility();
-    refreshBalance();
   }
+  updateCashoutVisibility(t);
+  renderPlayersList(t.bets);
   lastStatus = t.status;
-});
+}
+on("table:crash:state", applyState);
+function joinTable(){ request("table:crash:join").then(res => applyState(res.state)); }
+joinTable();
+onReconnect(joinTable);
 
-/* Liste des participants de la manche en cours. Bornée aux 50 mises les plus
-   récentes (quota de lectures Firestore) — largement suffisant pour une manche. */
-onSnapshot(query(collection(db, "tables", TABLE_ID, "bets"), orderBy("createdAt","desc"), limit(50)), (snap) => {
-  if(!currentTable) return;
-  const bets = snap.docs.map(d=>d.data()).filter(b => b.roundId === currentTable.roundId);
+function renderPlayersList(bets){
   const el = document.getElementById("playersList");
   if(!bets.length){ el.innerHTML = ""; return; }
   el.innerHTML = bets.map(b => `<div class="pl-row ${b.cashedOut?'win':'pending'}">
     <span>${b.playerName}</span>
     <span>${b.cashedOut ? ('✓ '+b.cashOutMultiplier.toFixed(2)+'×') : (b.amount+' 🪙 en jeu')}</span>
   </div>`).join('');
-});
+}
 </script>
 </body>
 </html>

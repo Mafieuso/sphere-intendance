@@ -119,7 +119,8 @@ import { initFx } from "../assets/js/fx.js";
 import { initUiFx, burst, animateTokenPill } from "../assets/js/uiFx.js";
 import { toast } from "../assets/js/toast.js";
 import { requirePlayerCard } from "../assets/js/playerSession.js";
-import { getCard, adjustBalance, isExpired, isSuspended } from "../assets/js/cards.js";
+import { getCard } from "../assets/js/cards.js";
+import { request } from "../assets/js/api.js";
 import { tokenDisplayHTML, formatYen, tokensToYen } from "../assets/js/economy.js";
 
 initFx();
@@ -165,11 +166,6 @@ document.getElementById("btnPlay").addEventListener("click", async (evt) => {
   const btnPlay = document.getElementById("btnPlay");
   btnPlay.disabled = true;
 
-  const card = await getCard(session.id);
-  if(isExpired(card)){ toast("Carte expirée — repasse à la caisse.", "error"); playing = false; btnPlay.disabled = false; return; }
-  if(isSuspended(card)){ toast("Carte suspendue — contacte l'Hôte.", "error"); playing = false; btnPlay.disabled = false; return; }
-  if(card.balance < bet){ toast("Solde de jetons insuffisant.", "warn"); playing = false; btnPlay.disabled = false; return; }
-
   const banner = document.getElementById("resultBanner");
   banner.className = "result-banner";
   const coin = document.getElementById("coin");
@@ -177,18 +173,24 @@ document.getElementById("btnPlay").addEventListener("click", async (evt) => {
   glow.classList.add("on");
   coin.classList.remove("flipping","win-spin"); void coin.offsetWidth; coin.classList.add("flipping");
 
-  const outcome = Math.random() < 0.5 ? "pile" : "face";
-  const win = outcome === choice;
-  const net = win ? Math.round(bet * 0.5) : -bet;
+  /* Le tirage a lieu côté serveur — jamais côté navigateur — pour empêcher
+     un joueur d'annoncer lui-même un résultat gagnant. */
+  let res;
+  try{
+    res = await request("game:coinflip:play", { choice, bet });
+  }catch(e){
+    toast(e.message, "error");
+    coin.classList.remove("flipping");
+    glow.classList.remove("on");
+    playing = false; btnPlay.disabled = false;
+    return;
+  }
+  const { outcome, win, net, balanceAfter } = res;
 
   setTimeout(async () => {
     coin.textContent = outcome === "pile" ? "面" : "金";
     glow.classList.remove("on");
     try{
-      const balanceAfter = await adjustBalance({
-        cardId: session.id, amount: net, type: win ? "gain" : "perte",
-        gameId: "coinflip", note: `Mise ${bet} jeton(s) sur ${choice}, résultat ${outcome}`
-      });
       banner.classList.add(win ? "win" : "loss");
       requestAnimationFrame(() => banner.classList.add("show"));
       banner.innerHTML = win

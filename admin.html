@@ -131,49 +131,42 @@
 import { initFx } from "./assets/js/fx.js";
 import { initUiFx, animateCounters } from "./assets/js/uiFx.js";
 import { toast } from "./assets/js/toast.js";
-import { requireRole, renderStaffBadge, roleLabel, resetStaffPin } from "./assets/js/session.js";
-import { listAllCards, isExpired, deleteCard, casinoProfitTokens, isSuspended, setCardSuspended } from "./assets/js/cards.js";
+import { requireRole, renderStaffBadge, roleLabel, resetStaffPin, createStaff, listStaff } from "./assets/js/session.js";
+import { isExpired, deleteCard, isSuspended, setCardSuspended } from "./assets/js/cards.js";
 import { tokenDisplayHTML, formatYen, tokensToYen } from "./assets/js/economy.js";
-import { logAction } from "./assets/js/logs.js";
-import { db, collection, query, orderBy, limit, onSnapshot, addDoc, getDocs } from "./assets/js/firebase-init.js";
+import { request, on } from "./assets/js/api.js";
 
 initFx();
 initUiFx();
 const staff = requireRole(["admin"]);
 if(staff){ renderStaffBadge(); }
 
-function generatePin(){
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let pin = ""; for(let i=0;i<8;i++) pin += chars[Math.floor(Math.random()*chars.length)];
-  return pin;
-}
-
 /* ── Journal d'audit live ── */
-const logQ = query(collection(db, "logs"), orderBy("createdAt", "desc"), limit(40));
-onSnapshot(logQ, (snap) => {
+function renderAuditLog(logs){
   const el = document.getElementById("auditLog");
-  if(snap.empty){ el.innerHTML = `<div class="empty-state"><p>Aucune activité.</p></div>`; return; }
-  el.innerHTML = `<div class="log-list">${snap.docs.map(d => {
-    const l = d.data();
-    const date = l.createdAt?.toDate ? l.createdAt.toDate().toLocaleString('fr-FR') : '—';
+  if(!logs.length){ el.innerHTML = `<div class="empty-state"><p>Aucune activité.</p></div>`; return; }
+  el.innerHTML = `<div class="log-list">${logs.map(l => {
+    const date = l.createdAt ? new Date(l.createdAt).toLocaleString('fr-FR') : '—';
     return `<div class="log-entry">
       <span class="log-action">${l.action}</span>
       <span class="log-detail"><strong>${l.playerName||l.staffName||'—'}</strong> ${l.detail?('— '+l.detail):''} ${l.amount!=null?(' ('+(l.amount>0?'+':'')+l.amount+' 🪙 · '+formatYen(tokensToYen(l.amount))+')'):''}</span>
       <span class="log-date">${date}</span>
     </div>`;
   }).join('')}</div>`;
-});
+}
+let auditLogs = [];
+on("audit:entry", (entry) => { auditLogs = [entry, ...auditLogs].slice(0, 40); renderAuditLog(auditLogs); });
+request("audit:subscribe").then(res => { auditLogs = res.logs; renderAuditLog(auditLogs); });
 
 /* ── Staff ── */
 let staffById = {};
 function pinStatusHTML(s){
   if(s.pinConfigured === false) return `<span style="color:#ffb74d;">🔸 Code temporaire — pas encore configuré</span>`;
-  if(s.pinSetAt?.toDate) return `<span style="color:#5ee0af;">✓ Code configuré le ${s.pinSetAt.toDate().toLocaleString('fr-FR')}</span>`;
+  if(s.pinSetAt) return `<span style="color:#5ee0af;">✓ Code configuré le ${new Date(s.pinSetAt).toLocaleString('fr-FR')}</span>`;
   return `<span style="color:#5ee0af;">✓ Code configuré</span>`;
 }
 async function loadStaff(){
-  const snap = await getDocs(collection(db, "staff"));
-  const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const list = await listStaff();
   staffById = Object.fromEntries(list.map(s => [s.id, s]));
   document.getElementById("statStaff").textContent = list.filter(s=>s.active).length;
   const el = document.getElementById("staffList");
@@ -197,13 +190,15 @@ document.getElementById("btnAddStaff").addEventListener("click", async () => {
   const steamId = document.getElementById("stSteamId").value.trim();
   const role = document.getElementById("stRole").value;
   if(!name || !steamId) return toast("Nom et Steam ID requis.", "warn");
-  const pin = generatePin();
-  await addDoc(collection(db, "staff"), { name, steamId, role, pin, active: true, pinConfigured: false, pinSetAt: null, createdAt: new Date() });
-  await logAction({ action: "STAFF_AJOUTE", detail: `${name} ajouté comme ${roleLabel(role)}`, staffId: staff.id, staffName: staff.name });
-  toast("Membre du staff ajouté.", "success");
-  document.getElementById("staffPinReveal").innerHTML = `<div class="pin-reveal"><div class="form-label">Code temporaire — à transmettre à ${name}</div><div class="pv">${pin}</div></div>`;
-  document.getElementById("stName").value = ""; document.getElementById("stSteamId").value = "";
-  loadStaff();
+  try{
+    const { pin } = await createStaff({ name, steamId, role });
+    toast("Membre du staff ajouté.", "success");
+    document.getElementById("staffPinReveal").innerHTML = `<div class="pin-reveal"><div class="form-label">Code temporaire — à transmettre à ${name}</div><div class="pv">${pin}</div></div>`;
+    document.getElementById("stName").value = ""; document.getElementById("stSteamId").value = "";
+    loadStaff();
+  }catch(e){
+    toast(e.message, "error");
+  }
 });
 
 let pendingResetStaff = null;
@@ -216,10 +211,8 @@ window.__confirmResetPin = (staffId) => {
 };
 document.getElementById("btnConfirmResetPin").addEventListener("click", async () => {
   if(!pendingResetStaff) return;
-  const tempPin = generatePin();
   try{
-    await resetStaffPin(pendingResetStaff.id, tempPin);
-    await logAction({ action: "STAFF_CODE_RESET", detail: `Code réinitialisé pour ${pendingResetStaff.name}`, staffId: staff.id, staffName: staff.name });
+    const tempPin = await resetStaffPin(pendingResetStaff.id);
     document.getElementById("modalResetPin").classList.remove("open");
     document.getElementById("staffPinReveal").innerHTML = `<div class="pin-reveal"><div class="form-label">Nouveau code temporaire — à transmettre à ${pendingResetStaff.name}</div><div class="pv">${tempPin}</div></div>`;
     toast("Code réinitialisé.", "success");
@@ -232,8 +225,7 @@ document.getElementById("btnConfirmResetPin").addEventListener("click", async ()
 
 /* ── Cartes ── */
 let cardsById = {};
-async function loadCards(){
-  const cards = await listAllCards();
+function renderCards(cards){
   cardsById = Object.fromEntries(cards.map(c => [c.id, c]));
   const active = cards.filter(c => !isExpired(c));
   const expired = cards.filter(c => isExpired(c));
@@ -263,12 +255,9 @@ async function loadCards(){
   }).join('');
 }
 
-async function loadProfit(){
-  try{
-    const profitTokens = await casinoProfitTokens();
-    document.getElementById("statProfit").textContent = profitTokens.toLocaleString('fr-FR');
-    document.getElementById("statProfitYen").textContent = `≈ ${formatYen(tokensToYen(profitTokens))}`;
-  }catch(e){ console.error("Profit casino indisponible :", e); }
+function renderProfit(profitTokens){
+  document.getElementById("statProfit").textContent = profitTokens.toLocaleString('fr-FR');
+  document.getElementById("statProfitYen").textContent = `≈ ${formatYen(tokensToYen(profitTokens))}`;
 }
 
 window.__toggleSuspendCard = async (cardId) => {
@@ -276,9 +265,8 @@ window.__toggleSuspendCard = async (cardId) => {
   if(!card) return;
   const suspend = !isSuspended(card);
   try{
-    await setCardSuspended(cardId, suspend, staff);
+    await setCardSuspended(cardId, suspend);
     toast(suspend ? `Carte de ${card.playerName} suspendue.` : `Carte de ${card.playerName} réactivée.`, "success");
-    loadCards();
   }catch(e){
     toast(e.message, "error");
   }
@@ -295,25 +283,20 @@ window.__confirmDeleteCard = (cardId) => {
 document.getElementById("btnConfirmDelete").addEventListener("click", async () => {
   if(!pendingDeleteCard) return;
   try{
-    await deleteCard(pendingDeleteCard.id, pendingDeleteCard.steamId, staff);
+    await deleteCard(pendingDeleteCard.id);
     toast("Carte et historique supprimés.", "success");
     document.getElementById("modalDeleteCard").classList.remove("open");
     pendingDeleteCard = null;
-    loadCards(); loadProfit();
   }catch(e){
     toast(e.message, "error");
   }
 });
 
 loadStaff();
-loadCards();
-loadProfit();
-/* Rafraîchi moins souvent, et seulement quand l'onglet est réellement affiché
-   (économise des lectures Firestore quand le Dashboard reste ouvert en fond). */
-setInterval(() => {
-  if(document.visibilityState !== "visible") return;
-  loadCards(); loadProfit();
-}, 120000);
+on("cards:list:update", renderCards);
+request("cards:list:subscribe").then(res => renderCards(res.cards));
+on("profit:update", renderProfit);
+request("profit:subscribe").then(res => renderProfit(res.profitTokens));
 </script>
 </body>
 </html>
