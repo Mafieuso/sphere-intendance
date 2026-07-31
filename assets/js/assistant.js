@@ -169,6 +169,7 @@ export function mountAssistant(){
   }
 
   function openPanel(){
+    if(!panel.hidden) return;
     panel.hidden = false;
     root.querySelector("#assistantBubble").hidden = true;
     renderMenu();
@@ -179,10 +180,21 @@ export function mountAssistant(){
     setTimeout(() => { panel.hidden = true; }, 180);
   }
 
-  avatar.addEventListener("click", () => {
-    if(panel.hidden) openPanel(); else closePanel();
-  });
-  root.querySelector("#assistantClose").addEventListener("click", closePanel);
+  /* Ouverture au survol (la souris passe sur la mascotte) plutôt qu'au
+     clic — le clic reste actif en secours pour le tactile. Un court
+     délai à la sortie évite une fermeture intempestive quand la souris
+     traverse le petit espace entre l'avatar et le panneau. */
+  let closeTimer = null;
+  function cancelClose(){ clearTimeout(closeTimer); }
+  function scheduleClose(){ cancelClose(); closeTimer = setTimeout(closePanel, 250); }
+
+  avatar.addEventListener("mouseenter", () => { cancelClose(); openPanel(); });
+  avatar.addEventListener("mouseleave", scheduleClose);
+  avatar.addEventListener("focus", openPanel);
+  avatar.addEventListener("click", openPanel);
+  panel.addEventListener("mouseenter", cancelClose);
+  panel.addEventListener("mouseleave", scheduleClose);
+  root.querySelector("#assistantClose").addEventListener("click", () => { cancelClose(); closePanel(); });
 
   root.querySelector("#assistantForm").addEventListener("submit", (e) => {
     e.preventDefault();
