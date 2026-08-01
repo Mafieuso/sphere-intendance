@@ -78,7 +78,6 @@ export function registerBlackjackHandlers(io, socket){
       if((card.balance || 0) < amt) return cb?.({ ok: false, error: "Solde insuffisant." });
 
       await adjustBalance({ cardId, amount: -amt, type: "mise", gameId: "blackjack", note: `Mise ${amt} jeton(s) au Blackjack` });
-      addRake(amt);
       const rankUp = await recordWager(cardId, amt);
       table.seats.push({
         id: `${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
@@ -162,6 +161,8 @@ export function registerBlackjackHandlers(io, socket){
               note: `Égalité (push) manche #${roundId}`
             });
           }catch(e){ console.error("Remboursement push échoué :", e); }
+        }else{
+          addRake(seat.bet);
         }
         seat.status = outcome;
       }

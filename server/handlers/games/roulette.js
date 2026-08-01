@@ -65,7 +65,6 @@ export function registerRouletteHandlers(io, socket){
         cardId, amount: -amt, type: "mise", gameId: "roulette",
         note: `Mise ${amt} jeton(s) sur ${label}`
       });
-      addRake(amt);
       const rankUp = await recordWager(cardId, amt);
       table.bets.push({
         id: `${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
@@ -101,6 +100,8 @@ export function registerRouletteHandlers(io, socket){
               note: `Roulette manche #${roundId} — numéro ${result}`
             });
           }catch(e){ console.error("Paiement roulette échoué :", e); }
+        }else{
+          addRake(bet.amount);
         }
       }
       table.status = "result";

@@ -59,6 +59,7 @@ function startTick(){
     if(mult >= table.crashPoint){
       stopTick();
       table.status = "crashed";
+      table.bets.forEach(b => { if(!b.cashedOut) addRake(b.amount); });
       broadcast();
       return;
     }
@@ -105,7 +106,6 @@ export function registerCrashHandlers(io, socket){
       if((card.balance || 0) < amt) return cb?.({ ok: false, error: "Solde insuffisant." });
 
       await adjustBalance({ cardId, amount: -amt, type: "mise", gameId: "crash", note: `Mise ${amt} jeton(s) — Ascension Fulgurante` });
-      addRake(amt);
       const rankUp = await recordWager(cardId, amt);
       table.bets.push({
         id: `${Date.now()}-${Math.random().toString(36).slice(2,8)}`,

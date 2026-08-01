@@ -1,5 +1,6 @@
 /* Cagnotte progressive partagée entre tous les jeux. Alimentée par un petit
-   prélèvement sur chaque mise posée n'importe où sur le site, plus les
+   prélèvement sur les mises PERDUES par les joueurs (jamais sur la mise
+   elle-même, encore moins sur un gain) — voir addRake() plus bas — plus les
    inscriptions à 10 jetons. Le tirage est manuel (réservé à l'Intendance) —
    pas de tirage automatique.
 
@@ -53,12 +54,17 @@ async function broadcastJackpot(){
   catch(e){ console.error("broadcastJackpot a échoué :", e); }
 }
 
-/* Appelé par chaque jeu au moment de la mise (pas du gain) — le prélèvement
-   est proportionnel à l'argent qui circule, pas au résultat. */
-export async function addRake(betAmount){
+/* Appelé par chaque jeu UNIQUEMENT quand le joueur perd sa mise (jamais au
+   moment de miser, jamais sur un gain) : le prélèvement porte sur une somme
+   déjà acquise au profit du casino, jamais sur de l'argent qui pourrait
+   encore repartir vers le joueur. Alimenter le Jackpot dès la mise (comme
+   avant) faisait grossir la cagnotte même quand le joueur gagnait — un
+   double risque financier pour l'Intendance (le paiement du gain ET le
+   prélèvement partaient du même jeton). */
+export async function addRake(lostAmount){
   try{
     const doc = await getJackpotDoc();
-    const flaggedYen = tokensToYen(betAmount) * RAKE_RATE;
+    const flaggedYen = tokensToYen(lostAmount) * RAKE_RATE;
     const poolYen = Math.floor(flaggedYen * poolShareOf(doc));
     if(poolYen <= 0) return;
     const db = await getDb();

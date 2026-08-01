@@ -21,10 +21,10 @@ export function registerDiceHandlers(io, socket){
       if(isSuspended(card)) return cb?.({ ok: false, error: "Carte suspendue — contacte l'Hôte." });
       if((card.balance || 0) < amount) return cb?.({ ok: false, error: "Solde de jetons insuffisant." });
 
-      addRake(amount);
       const rankUp = await recordWager(cardId, amount);
       const roll = Math.floor(Math.random() * 6) + 1;
       const win = roll === num;
+      if(!win) addRake(amount);
       const net = win ? amount * 4 : -amount;
       const balanceAfter = await adjustBalance({
         cardId, amount: net, type: win ? "gain" : "perte", gameId: "dice",

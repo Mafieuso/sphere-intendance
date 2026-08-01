@@ -20,10 +20,10 @@ export function registerCoinflipHandlers(io, socket){
       if(isSuspended(card)) return cb?.({ ok: false, error: "Carte suspendue — contacte l'Hôte." });
       if((card.balance || 0) < amount) return cb?.({ ok: false, error: "Solde de jetons insuffisant." });
 
-      addRake(amount);
       const rankUp = await recordWager(cardId, amount);
       const outcome = Math.random() < 0.5 ? "pile" : "face";
       const win = outcome === choice;
+      if(!win) addRake(amount);
       const net = win ? Math.round(amount * 0.5) : -amount;
       const balanceAfter = await adjustBalance({
         cardId, amount: net, type: win ? "gain" : "perte", gameId: "coinflip",
