@@ -12,6 +12,12 @@ const TILT_SEL = '.panel,.stat-card,.card-visual,.card-result';
 export function initTilt(){
   let current = null;
   document.addEventListener('mousemove', (e) => {
+    /* Bouton maintenu = l'utilisateur glisse quelque chose (un curseur de
+       réglage, une sélection de texte...) à l'intérieur du panneau. Faire
+       tanguer le panneau en 3D pendant ce geste déplace son cadre sous le
+       curseur et casse le suivi natif du glisser (le slider "ne répond
+       plus"). On gèle le tilt tel quel tant qu'un bouton est enfoncé. */
+    if(e.buttons === 1) return;
     const card = e.target.closest(TILT_SEL);
     if(card !== current){
       if(current){ current.style.transform = ''; current.classList.remove('wow-tilt-active'); }
