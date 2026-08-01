@@ -11,6 +11,7 @@ export function registerCoinflipHandlers(io, socket){
       if(!["pile", "face"].includes(choice)) return cb?.({ ok: false, error: "Choix invalide." });
       const amount = parseInt(bet, 10);
       if(!amount || amount < 2) return cb?.({ ok: false, error: "Mise minimum : 2 jetons." });
+      if(amount > 10) return cb?.({ ok: false, error: "Mise maximum : 10 jetons." });
 
       const cardId = socket.session.cardId;
       const db = await getDb();

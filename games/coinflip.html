@@ -76,8 +76,8 @@
       </div>
       <div class="bet-row">
         <div class="form-group">
-          <label class="form-label">Mise (jetons — minimum 2 — 1 🪙 = 50 000 ¥)</label>
-          <input class="form-input" id="betAmount" type="number" min="2" step="1" value="2">
+          <label class="form-label">Mise (jetons — 2 à 10 — 1 🪙 = 50 000 ¥)</label>
+          <input class="form-input" id="betAmount" type="number" min="2" max="10" step="1" value="2">
           <div class="quick-bets">
             <button type="button" class="quick-bet-btn" data-v="2">2</button>
             <button type="button" class="quick-bet-btn" data-v="5">5</button>
@@ -98,7 +98,7 @@
         <li><strong>1 chance sur 2</strong> de deviner juste.</li>
         <li>Victoire : <strong>+50 % de la mise</strong> en gain net.</li>
         <li>Défaite : la mise complète est perdue.</li>
-        <li>Mise <strong>minimum 2 jetons</strong> (en-dessous, le gain arrondi serait nul).</li>
+        <li>Mise <strong>minimum 2 jetons</strong> (en-dessous, le gain arrondi serait nul), <strong>maximum 10 jetons</strong>.</li>
       </ul>
       <div class="rules-badge">Paiement ×1.5</div>
     </div>
@@ -147,7 +147,7 @@ function updateYenPreview(){
 }
 betInput.addEventListener("input", updateYenPreview);
 document.querySelectorAll(".quick-bet-btn").forEach(b => b.addEventListener("click", () => {
-  betInput.value = b.dataset.v === "max" ? Math.max(2, myBalance) : b.dataset.v;
+  betInput.value = b.dataset.v === "max" ? Math.min(10, Math.max(2, myBalance)) : b.dataset.v;
   updateYenPreview();
 }));
 

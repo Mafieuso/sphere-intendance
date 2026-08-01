@@ -78,6 +78,7 @@ export function registerBlackjackHandlers(io, socket){
       if(table.status !== "betting") return cb?.({ ok: false, error: "Les mises ne sont pas ouvertes." });
       const amt = parseInt(amount, 10);
       if(!amt || amt <= 0) return cb?.({ ok: false, error: "Mise invalide." });
+      if(amt > 50) return cb?.({ ok: false, error: "Mise maximum : 50 jetons." });
       const cardId = socket.session.cardId;
       if(table.seats.some(s => s.cardId === cardId)) return cb?.({ ok: false, error: "Tu es déjà à la table pour cette manche." });
 

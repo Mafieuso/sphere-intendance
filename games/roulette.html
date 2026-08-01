@@ -104,8 +104,8 @@
         <div class="table-board"><div class="numbers-grid" id="numbersGrid"></div></div>
         <div class="bet-row">
           <div class="form-group">
-            <label class="form-label">Mise (jetons — 1 🪙 = 50 000 ¥)</label>
-            <input class="form-input" id="betAmount" type="number" min="1" step="1" value="1">
+            <label class="form-label">Mise (jetons — max 10 — 1 🪙 = 50 000 ¥)</label>
+            <input class="form-input" id="betAmount" type="number" min="1" max="10" step="1" value="1">
             <div class="quick-bets">
               <button type="button" class="quick-bet-btn" data-v="1">1</button>
               <button type="button" class="quick-bet-btn" data-v="5">5</button>
@@ -131,6 +131,7 @@
         <li>Le Croupier ouvre les mises, les ferme, puis lance la roue.</li>
         <li>Un seul numéro gagnant par manche (0 = vert, ni rouge ni noir).</li>
         <li>Tu peux miser plusieurs fois sur des choix différents dans la même manche.</li>
+        <li>Mise <strong>maximum 10 jetons</strong> par mise.</li>
       </ul>
       <div class="rules-badge">Numéro ×36 · Couleur ×2</div>
     </div>

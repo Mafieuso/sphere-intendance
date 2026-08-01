@@ -57,6 +57,7 @@ export function registerRouletteHandlers(io, socket){
       if(table.status !== "betting") return cb?.({ ok: false, error: "Les mises ne sont pas ouvertes." });
       const amt = parseInt(amount, 10);
       if(!amt || amt <= 0) return cb?.({ ok: false, error: "Mise invalide." });
+      if(amt > 10) return cb?.({ ok: false, error: "Mise maximum : 10 jetons par mise." });
       if(!["color", "number"].includes(betType)) return cb?.({ ok: false, error: "Type de mise invalide." });
 
       const cardId = socket.session.cardId;

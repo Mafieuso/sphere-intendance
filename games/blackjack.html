@@ -84,12 +84,13 @@
       <div id="playerPanel" style="display:none">
         <div class="join-row" id="joinRow">
           <div class="form-group">
-            <label class="form-label">Mise (jetons — 1 🪙 = 50 000 ¥)</label>
-            <input class="form-input" id="betAmount" type="number" min="1" step="1" value="1">
+            <label class="form-label">Mise (jetons — max 50 — 1 🪙 = 50 000 ¥)</label>
+            <input class="form-input" id="betAmount" type="number" min="1" max="50" step="1" value="1">
             <div class="quick-bets">
               <button type="button" class="quick-bet-btn" data-v="1">1</button>
               <button type="button" class="quick-bet-btn" data-v="5">5</button>
               <button type="button" class="quick-bet-btn" data-v="10">10</button>
+              <button type="button" class="quick-bet-btn" data-v="50">50</button>
             </div>
           </div>
           <button class="btn btn-solid" id="btnJoin">Rejoindre la Table</button>
@@ -110,6 +111,7 @@
         <li><strong>Blackjack</strong> (21 avec 2 cartes) paie <strong>×2.5</strong>.</li>
         <li>Victoire simple paie <strong>×2</strong>. Égalité (push) rembourse la mise.</li>
         <li>Le croupier tire automatiquement jusqu'à <strong>17</strong>.</li>
+        <li>Mise <strong>maximum 50 jetons</strong>.</li>
       </ul>
       <div class="rules-badge">Blackjack ×2.5 · Victoire ×2</div>
     </div>
