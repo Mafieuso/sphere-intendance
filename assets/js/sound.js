@@ -251,9 +251,9 @@ export function setSoundVolume(v){
   else if(!muted) startAmbience();
 }
 
-/* Petit contrôle flottant en haut à droite (la gauche est prise par la
-   barre latérale du staff sur les pages Intendance/Hôte/Croupier) — icône
-   pour couper/rétablir + curseur pour ajuster. */
+/* Petit contrôle flottant en bas à gauche, juste à côté de la mascotte
+   (pas dessus, et sous la zone où s'ouvre son panneau d'aide) — icône pour
+   couper/rétablir + curseur pour ajuster. */
 export function mountSoundToggle(){
   if(document.getElementById("soundControl")) return;
   const wrap = document.createElement("div");
