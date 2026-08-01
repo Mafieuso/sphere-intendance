@@ -69,7 +69,29 @@ const WIN_QUIPS = [
   "L'Intendance note soigneusement... et sourit un peu moins.",
   "Beau jeu. Ou juste beaucoup de chance. On ne dira rien.",
   "Tes jetons viennent de faire un aller simple vers ta poche. Bravo.",
-  "Même les murs de la Sphère applaudissent, discrètement."
+  "Même les murs de la Sphère applaudissent, discrètement.",
+  "Alerte générale : quelqu'un vient de battre la maison. Ne le répète à personne.",
+  "Hanma Hord note ça dans son carnet. La couverture dit « Comptes ». C'est un mensonge.",
+  "Franchement, même moi je ne m'y attendais pas.",
+  "Un gain aussi propre, ça sent presque la triche. Presque.",
+  "Le Croupier vient de perdre un peu de sommeil pour toi.",
+  "Bravo. Sérieusement. Ne t'en fais pas une habitude.",
+  "Ta carte de joueur vient de prendre du galon.",
+  "Ça, c'est le genre de soirée dont on parle encore dans dix ans.",
+  "L'Intendance applaudit. Discrètement. Très discrètement.",
+  "On dirait bien que la chance a changé de camp ce soir.",
+  "Encaisse vite, avant que la maison change d'avis.",
+  "Un gain pareil, ça se fête. Ou ça se cache. À toi de voir.",
+  "Même le mobilier de la Sphère a l'air impressionné.",
+  "Tu viens de faire pleurer un comptable quelque part.",
+  "Petit conseil : arrête-toi maintenant. Ou pas. Je ne suis qu'une mascotte.",
+  "Ça sent le début d'une légende urbaine dans ce casino.",
+  "L'Intendance va devoir revoir ses calculs. Et son humeur.",
+  "Voilà qui va faire jaser à la table des croupiers.",
+  "Un instant de gloire pur. Savoure-le, il ne durera pas.",
+  "Même les jetons ont l'air surpris d'être encore avec toi.",
+  "Ce gain restera dans les annales... enfin, dans mon petit carnet à moi.",
+  "Chapeau. Ou dans mon cas, chapeau melon."
 ];
 const LOSE_QUIPS = [
   "La maison te remercie pour ta généreuse contribution.",
@@ -79,7 +101,27 @@ const LOSE_QUIPS = [
   "Une perte, une leçon. Ou juste une perte, en fait.",
   "L'Intendance ne rembourse jamais les regrets.",
   "Retente ta chance — c'est comme ça qu'on écrit les légendes... ou les tragédies.",
-  "Ça arrive aux meilleurs. Et à toi aussi, apparemment."
+  "Ça arrive aux meilleurs. Et à toi aussi, apparemment.",
+  "Hanma Hord regarde ailleurs, par pudeur.",
+  "Tes jetons ont trouvé un nouveau foyer. Ils semblent heureux, au moins.",
+  "La maison ne pleure jamais. Toi, un peu, peut-être.",
+  "Considère ça comme un don généreux à l'effort de guerre de l'Intendance.",
+  "Aïe. Je n'ai même pas de mouchoir à te tendre.",
+  "Ce n'est qu'un revers. Le prochain sera pire, statistiquement parlant.",
+  "Le Croupier fait de son mieux pour ne pas sourire.",
+  "Rassure-toi, personne ne t'a vu... enfin, presque personne.",
+  "Une défaite honnête vaut mieux qu'une victoire suspecte. Console-toi comme tu peux.",
+  "Tes jetons partent faire un tour. Ils ne reviendront pas vite.",
+  "L'Intendance salue ta générosité involontaire.",
+  "Ça pique. Mais au moins, ça pique en bonne compagnie.",
+  "On ne va pas se mentir, c'était couru d'avance.",
+  "Perdu, mais avec panache. Il y a pire.",
+  "Même les meilleures mains finissent parfois par terre.",
+  "Le sort n'était clairement pas d'humeur généreuse ce soir.",
+  "Retente ta chance. Ou va prendre l'air. Les deux se valent.",
+  "La maison ne dira rien. Elle n'a pas besoin de le faire, elle a déjà gagné.",
+  "Une perte de plus dans le grand livre de l'Intendance. Il est déjà bien épais.",
+  "Ne culpabilise pas, les jetons ne t'en voudront pas. Ils sont partis sans regrets."
 ];
 
 function normalize(s){
@@ -110,7 +152,10 @@ export function mountAssistant(){
     <div class="assistant-panel" id="assistantPanel" hidden>
       <div class="assistant-panel-head">
         <img src="/assets/img/mascotte.png" alt="" class="assistant-panel-avatar">
-        <div class="assistant-panel-title">Besoin d'aide ?</div>
+        <div>
+          <div class="assistant-panel-title">Hanma Hord</div>
+          <div class="assistant-panel-subtitle">Besoin d'aide ?</div>
+        </div>
         <button class="assistant-close" id="assistantClose" aria-label="Fermer">✕</button>
       </div>
       <div class="assistant-panel-body" id="assistantBody"></div>
@@ -119,8 +164,8 @@ export function mountAssistant(){
         <button type="submit" class="btn btn-gold btn-sm">➤</button>
       </form>
     </div>
-    <button class="assistant-avatar" id="assistantAvatar" aria-label="Assistant">
-      <img src="/assets/img/mascotte.png" alt="Assistant">
+    <button class="assistant-avatar" id="assistantAvatar" aria-label="Hanma Hord — assistant">
+      <img src="/assets/img/mascotte.png" alt="Hanma Hord">
     </button>
   `;
   document.body.appendChild(root);
