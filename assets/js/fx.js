@@ -65,6 +65,26 @@ export function spawnSuitSymbols(){
   }
 }
 
+/* Rails ornementaux gauche/droite — décorent le vide des grands écrans
+   (masqués en CSS sous 1300px). Site-wide via initFx(). */
+const RAIL_GLYPHS = ['♠', '扇', '♦', '鶴', '♣', '宝'];
+export function mountSideRails(){
+  if(document.getElementById('sideRailLeft')) return;
+  ['left', 'right'].forEach(side => {
+    const rail = document.createElement('div');
+    rail.id = side === 'left' ? 'sideRailLeft' : 'sideRailRight';
+    rail.className = `side-rail side-rail-${side}`;
+    RAIL_GLYPHS.forEach((g, i) => {
+      const m = document.createElement('div');
+      m.className = 'side-rail-medallion';
+      m.textContent = g;
+      m.style.animationDelay = `${i * .6}s`;
+      rail.appendChild(m);
+    });
+    document.body.appendChild(rail);
+  });
+}
+
 /* Transition de page — un voile qui se dissipe à l'arrivée et se referme
    juste avant de quitter la page (liens internes, même origine, clic
    simple), pour éviter le "saut" instantané entre deux pages. */
@@ -101,6 +121,7 @@ export function initFx(){
   initEmbers();
   spawnParticles();
   initPageTransitions();
+  mountSideRails();
   mountSoundToggle();
   initClickSounds();
   import("./assistant.js").then(m => m.mountAssistant());

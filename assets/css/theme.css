@@ -7,7 +7,8 @@
   --bg:#050202; --bg2:#0a0403; --panel:rgba(12,7,6,.97); --panel2:rgba(8,4,3,.98);
   --gold:#c9a227; --gold2:#f0d060; --gold-dim:rgba(201,162,39,.35);
   --crimson:#7a0e14; --crimson2:#b3121a; --crimson-glow:rgba(179,18,26,.4);
-  --jade:#0f3d2e; --jade2:#1fae7c;
+  --jade:#0f3d2e; --jade2:#1fae7c; --jade-glow:rgba(31,174,124,.35);
+  --felt:#062e1c; --felt2:#0c4a2c; --felt3:#136b40;
   --text:#d8cfc2; --text-muted:rgba(216,207,194,.45);
   --border:rgba(201,162,39,.14); --border-h:rgba(201,162,39,.4);
   --win:#1fae7c; --loss:#c9282f; --info:#c9a227;
@@ -25,14 +26,16 @@ a{color:inherit;text-decoration:none;}
 ::-webkit-scrollbar-thumb:hover{background:rgba(201,162,39,.45);}
 ::selection{background:rgba(201,162,39,.25);color:#f5d870;}
 
-/* ── FOND ATMOSPHÉRIQUE ── */
+/* ── FOND ATMOSPHÉRIQUE — table de casino, pas juste sombre : un vert
+   feutre profond domine désormais, l'or et le cramoisi restent en accents. ── */
 .bg-fx{position:fixed;inset:0;z-index:-3;pointer-events:none;
-  background:radial-gradient(ellipse at 20% 10%,#1a0505 0%,#050202 55%,#000 100%);}
+  background:radial-gradient(ellipse at 20% 10%,#0a1f14 0%,#050202 55%,#000 100%);}
 .bg-fx::before{content:'';position:absolute;inset:0;
   background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.035) 2px,rgba(0,0,0,.035) 4px);}
 .bg-fx::after{content:'';position:absolute;inset:0;
-  background:radial-gradient(ellipse at 50% 100%,rgba(179,18,26,.1) 0%,transparent 60%),
-             radial-gradient(ellipse at 100% 0%,rgba(201,162,39,.05) 0%,transparent 50%);}
+  background:radial-gradient(ellipse at 50% 100%,rgba(31,174,124,.1) 0%,transparent 60%),
+             radial-gradient(ellipse at 100% 0%,rgba(201,162,39,.06) 0%,transparent 50%),
+             radial-gradient(ellipse at 0% 60%,rgba(179,18,26,.05) 0%,transparent 45%);}
 #embers{position:fixed;inset:0;z-index:-2;pointer-events:none;opacity:.85;mix-blend-mode:screen;}
 #grain{position:fixed;inset:0;z-index:9998;pointer-events:none;opacity:.045;mix-blend-mode:overlay;
   background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");}
@@ -321,7 +324,7 @@ a{color:inherit;text-decoration:none;}
    ni le solde du joueur, ni le lien retour. */
 .jackpot-widget{position:fixed;top:0;left:0;right:0;z-index:600;
   display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;
-  background:linear-gradient(135deg,#3a0508,#7a0e14,#c9a227,#7a0e14,#3a0508);
+  background:linear-gradient(135deg,#052e1c,#125c37,#c9a227,#125c37,#052e1c);
   background-size:220% auto;animation:jackpotShimmer 4s linear infinite;
   padding:8px 20px;border-bottom:2px solid var(--gold2);
   box-shadow:0 4px 18px rgba(0,0,0,.5);}
@@ -346,7 +349,7 @@ a{color:inherit;text-decoration:none;}
 /* Transition de page — voile qui se dissipe à l'arrivée, se referme avant
    de quitter (assets/js/fx.js). */
 .page-transition-overlay{position:fixed;inset:0;z-index:99999;pointer-events:none;
-  background:radial-gradient(circle,#1a0505,#050202);opacity:0;transition:opacity .35s ease;}
+  background:radial-gradient(circle,#071f13,#050202);opacity:0;transition:opacity .35s ease;}
 .page-transition-overlay.pt-visible{opacity:1;pointer-events:all;}
 
 @media(prefers-reduced-motion:reduce){
@@ -398,17 +401,21 @@ a{color:inherit;text-decoration:none;}
 .assistant-panel-input input:focus{outline:none;border-color:var(--gold);}
 @media(max-width:480px){.assistant-panel{width:calc(100vw - 36px);}}
 
-/* ── Bouton son (haut-gauche — le seul coin libre de tout élément fixe) ── */
-.sound-toggle{position:fixed;top:70px;left:16px;z-index:9600;width:34px;height:34px;border-radius:50%;
-  border:1px solid var(--border-h);background:rgba(12,7,6,.85);color:var(--gold);font-size:1rem;
-  display:flex;align-items:center;justify-content:center;transition:.2s;box-shadow:0 4px 12px rgba(0,0,0,.5);}
-.sound-toggle:hover{border-color:var(--gold);background:rgba(201,162,39,.12);transform:scale(1.08);}
+/* ── Contrôle du son (haut-gauche — le seul coin libre de tout élément
+   fixe) : icône pour couper/rétablir + curseur pour ajuster le volume. ── */
+.sound-control{position:fixed;top:70px;left:16px;z-index:9600;display:flex;align-items:center;gap:8px;
+  background:rgba(12,7,6,.85);border:1px solid var(--border-h);border-radius:20px;padding:5px 14px 5px 5px;
+  box-shadow:0 4px 12px rgba(0,0,0,.5);}
+.sound-control #soundMuteBtn{width:26px;height:26px;border-radius:50%;border:none;background:transparent;
+  color:var(--gold);font-size:.9rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:.2s;}
+.sound-control #soundMuteBtn:hover{color:var(--gold2);transform:scale(1.1);}
+.sound-control input[type=range]{width:72px;accent-color:var(--gold);}
 
 /* ── Portail d'entrée (index.html uniquement) : deux battants qui
    s'écartent au chargement, avec un caractère qui s'efface au passage. ── */
 .entrance-doors{position:fixed;inset:0;z-index:100000;display:flex;pointer-events:none;}
-.entrance-door{flex:1;background:linear-gradient(135deg,#1a0505,#050202 65%);position:relative;
-  box-shadow:inset 0 0 90px rgba(179,18,26,.3);transition:transform 1.15s cubic-bezier(.76,0,.24,1);}
+.entrance-door{flex:1;background:linear-gradient(135deg,#04150d,#050202 65%);position:relative;
+  box-shadow:inset 0 0 90px rgba(31,174,124,.25);transition:transform 1.15s cubic-bezier(.76,0,.24,1);}
 .entrance-door-left{border-right:2px solid var(--gold);}
 .entrance-door-right{border-left:2px solid var(--gold);}
 .entrance-doors.entrance-open .entrance-door-left{transform:translateX(-100%);}
@@ -422,7 +429,7 @@ a{color:inherit;text-decoration:none;}
 /* ── Mandala tournant derrière le blason de l'accueil ── */
 .gate-wrap::before{content:'';position:absolute;top:50%;left:50%;width:560px;height:560px;max-width:140vw;
   transform:translate(-50%,-55%);border-radius:50%;pointer-events:none;z-index:-1;
-  background:conic-gradient(from 0deg,transparent,rgba(201,162,39,.09),transparent 30%,transparent 60%,rgba(179,18,26,.06),transparent 90%);
+  background:conic-gradient(from 0deg,transparent,rgba(201,162,39,.09),transparent 30%,transparent 60%,rgba(31,174,124,.09),transparent 90%);
   animation:mandalaSpin 50s linear infinite;}
 @keyframes mandalaSpin{to{transform:translate(-50%,-55%) rotate(360deg);}}
 
@@ -466,3 +473,31 @@ a{color:inherit;text-decoration:none;}
 .rules-list li strong{color:var(--text);font-weight:600;}
 .rules-badge{display:inline-block;margin-top:10px;padding:5px 12px;border-radius:20px;font-family:'Cinzel',serif;
   font-size:.56rem;letter-spacing:2px;text-transform:uppercase;border:1px solid rgba(201,162,39,.3);color:var(--gold);background:rgba(201,162,39,.06);}
+
+/* ── Habillage "table de casino" — feutre vert + liseré doré + jetons
+   dans les coins, appliqué à la zone de jeu elle-même (roue, table de
+   cartes, dés, pièce), en plus de son propre habillage existant. ── */
+.casino-table{position:relative;border-radius:12px;
+  background:radial-gradient(ellipse at center,var(--felt3) 0%,var(--felt2) 55%,var(--felt) 100%);
+  border:1px solid rgba(201,162,39,.4)!important;
+  box-shadow:inset 0 0 70px rgba(0,0,0,.55),inset 0 0 0 6px rgba(6,46,28,.6),0 0 26px rgba(31,174,124,.1);}
+.casino-table::before,.casino-table::after{position:absolute;font-size:1.3rem;pointer-events:none;opacity:.35;
+  text-shadow:0 2px 6px rgba(0,0,0,.6);}
+.casino-table::before{content:'🪙';top:10px;left:12px;}
+.casino-table::after{content:'♠';bottom:10px;right:14px;color:var(--gold2);}
+
+/* ── Rails ornementaux gauche/droite (assets/js/fx.js) — décorent le vide
+   des grands écrans sans jamais empiéter sur le contenu (masqués en dessous
+   de 1300px, où ce vide n'existe de toute façon plus). ── */
+.side-rail{position:fixed;top:0;bottom:0;width:56px;z-index:1;pointer-events:none;
+  display:flex;flex-direction:column;align-items:center;justify-content:space-evenly;opacity:.65;}
+.side-rail-left{left:0;background:linear-gradient(to right,rgba(0,0,0,.18),transparent);}
+.side-rail-right{right:0;background:linear-gradient(to left,rgba(0,0,0,.18),transparent);}
+.side-rail::before{content:'';position:absolute;top:60px;bottom:60px;left:50%;width:1px;
+  background:linear-gradient(to bottom,transparent,rgba(201,162,39,.3),transparent);}
+.side-rail-medallion{width:30px;height:30px;border-radius:50%;border:1px solid rgba(201,162,39,.4);
+  background:radial-gradient(circle,var(--felt2),var(--felt));display:flex;align-items:center;justify-content:center;
+  font-size:.8rem;color:var(--gold2);animation:medallionGlow 5s ease-in-out infinite;position:relative;z-index:1;}
+@keyframes medallionGlow{0%,100%{box-shadow:0 0 8px rgba(201,162,39,.12);}50%{box-shadow:0 0 16px rgba(201,162,39,.32);}}
+@media(max-width:1300px){.side-rail{display:none;}}
+@media(prefers-reduced-motion:reduce){.side-rail-medallion{animation:none!important;}}
