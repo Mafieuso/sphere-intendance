@@ -101,8 +101,22 @@ export function playFanfare(){
    re-vérification régulière) plutôt que de compter sur setTimeout pour le
    tempo lui-même. */
 const AMBIENCE_FILE = "/assets/audio/ambiance.mp3";
+/* Le site est en pages multiples (pas une SPA) : chaque navigation recrée
+   tout le JS, donc l'élément <audio> ne "survit" jamais d'une page à
+   l'autre. Pour donner l'illusion d'une piste continue plutôt qu'un
+   redémarrage à chaque clic, on mémorise la position de lecture (mise à
+   jour en continu, sauvegardée aussi à la sortie de la page) et on
+   reprend exactement là où la page précédente s'était arrêtée. */
+const AMBIENCE_POS_KEY = "sphereIntendanceAmbiencePos";
 let fileAmbience = null;
 let fileAmbienceChecked = false;
+
+function savePlaybackPosition(){
+  if(fileAmbience && !fileAmbience.paused){
+    localStorage.setItem(AMBIENCE_POS_KEY, String(fileAmbience.currentTime));
+  }
+}
+window.addEventListener("pagehide", savePlaybackPosition);
 
 function tryLoadFileAmbience(){
   return new Promise((resolve) => {
@@ -213,6 +227,13 @@ async function startAmbience(){
   if(!fileAmbienceChecked){
     fileAmbienceChecked = true;
     fileAmbience = await tryLoadFileAmbience();
+    if(fileAmbience){
+      const savedPos = parseFloat(localStorage.getItem(AMBIENCE_POS_KEY));
+      if(Number.isFinite(savedPos) && savedPos > 0){
+        try{ fileAmbience.currentTime = savedPos; }catch{}
+      }
+      fileAmbience.addEventListener("timeupdate", savePlaybackPosition);
+    }
   }
   if(!ambienceRunning) return; // coupé pendant le chargement du fichier
 
