@@ -1,15 +1,16 @@
-/* Blackjack — état de la manche en mémoire serveur, diffusé au salon
-   "table:blackjack-1". La résolution attend que tous les sièges aient fini
-   leur tour (bust/stand) avant de payer — ferme la race condition trouvée
-   plus tôt (un tirage en cours ne peut plus être lu dans un état obsolète). */
+/* Blackjack — deux tables indépendantes ("1" et "2"), chacune avec son
+   propre état en mémoire et sa propre room Socket.io, pour que deux
+   croupiers puissent animer une manche chacun en parallèle. La résolution
+   attend que tous les sièges d'UNE table aient fini leur tour (bust/stand)
+   avant de payer — ferme la race condition trouvée plus tôt (un tirage en
+   cours ne peut plus être lu dans un état obsolète). */
 import { isCroupierOrAdmin, isPlayer } from "../../auth.js";
 import { adjustBalance, isExpired, isSuspended } from "../cards.js";
 import { addRake } from "../jackpot.js";
 import { recordWager } from "../ranks.js";
 import { getDb } from "../../db.js";
 
-const TABLE_ID = "blackjack-1";
-const ROOM = `table:${TABLE_ID}`;
+const TABLE_IDS = ["1", "2"];
 const RANKS = ["2","3","4","5","6","7","8","9","10","J","Q","K","A"];
 const SUITS = ["♠","♥","♦","♣"];
 function randomCard(){ return { rank: RANKS[Math.floor(Math.random()*RANKS.length)], suit: SUITS[Math.floor(Math.random()*SUITS.length)] }; }
@@ -21,15 +22,18 @@ function handTotal(hand){
   return total;
 }
 
-let ioRef = null;
-const table = { status: "betting", roundId: 1, dealerHand: [], hideSecond: true, croupierName: null, seats: [] };
+function freshTable(){ return { status: "betting", roundId: 1, dealerHand: [], hideSecond: true, croupierName: null, seats: [] }; }
+const tables = new Map(TABLE_IDS.map(id => [id, freshTable()]));
 
-function publicState(){
+let ioRef = null;
+function roomFor(tableId){ return `table:blackjack:${tableId}`; }
+function publicState(tableId){
+  const table = tables.get(tableId);
   const dealerHand = (table.hideSecond && table.dealerHand.length > 1)
     ? [table.dealerHand[0], { hidden: true }]
     : table.dealerHand;
   return {
-    status: table.status, roundId: table.roundId, croupierName: table.croupierName,
+    tableId, status: table.status, roundId: table.roundId, croupierName: table.croupierName,
     dealerHand,
     dealerTotal: table.hideSecond ? null : handTotal(table.dealerHand),
     seats: table.seats.map(s => ({
@@ -38,32 +42,39 @@ function publicState(){
     }))
   };
 }
-function broadcast(){ ioRef?.to(ROOM).emit("table:blackjack:state", publicState()); }
+function broadcast(tableId){ ioRef?.to(roomFor(tableId)).emit("table:blackjack:state", publicState(tableId)); }
 
 export function initBlackjack(io){ ioRef = io; }
 
 export function registerBlackjackHandlers(io, socket){
-  socket.on("table:blackjack:join", (_payload, cb) => {
-    socket.join(ROOM);
-    cb?.({ ok: true, state: publicState() });
+  socket.on("table:blackjack:join", ({ tableId } = {}, cb) => {
+    if(!TABLE_IDS.includes(tableId)) return cb?.({ ok: false, error: "Table invalide." });
+    socket.join(roomFor(tableId));
+    cb?.({ ok: true, state: publicState(tableId) });
   });
-  socket.on("table:blackjack:leave", () => socket.leave(ROOM));
+  socket.on("table:blackjack:leave", ({ tableId } = {}) => {
+    if(TABLE_IDS.includes(tableId)) socket.leave(roomFor(tableId));
+  });
 
-  socket.on("table:blackjack:newRound", (_payload, cb) => {
+  socket.on("table:blackjack:newRound", ({ tableId } = {}, cb) => {
     if(!isCroupierOrAdmin(socket.session)) return cb?.({ ok: false, error: "Réservé au Croupier." });
+    if(!TABLE_IDS.includes(tableId)) return cb?.({ ok: false, error: "Table invalide." });
+    const table = tables.get(tableId);
     table.status = "betting";
     table.roundId += 1;
     table.dealerHand = [];
     table.hideSecond = true;
     table.croupierName = socket.session.name;
     table.seats = [];
-    broadcast();
+    broadcast(tableId);
     cb?.({ ok: true });
   });
 
-  socket.on("table:blackjack:sit", async ({ amount } = {}, cb) => {
+  socket.on("table:blackjack:sit", async ({ tableId, amount } = {}, cb) => {
     try{
       if(!isPlayer(socket.session)) return cb?.({ ok: false, error: "Non connecté." });
+      if(!TABLE_IDS.includes(tableId)) return cb?.({ ok: false, error: "Table invalide." });
+      const table = tables.get(tableId);
       if(table.status !== "betting") return cb?.({ ok: false, error: "Les mises ne sont pas ouvertes." });
       const amt = parseInt(amount, 10);
       if(!amt || amt <= 0) return cb?.({ ok: false, error: "Mise invalide." });
@@ -77,57 +88,65 @@ export function registerBlackjackHandlers(io, socket){
       if(isSuspended(card)) return cb?.({ ok: false, error: "Carte suspendue — contacte l'Hôte." });
       if((card.balance || 0) < amt) return cb?.({ ok: false, error: "Solde insuffisant." });
 
-      await adjustBalance({ cardId, amount: -amt, type: "mise", gameId: "blackjack", note: `Mise ${amt} jeton(s) au Blackjack` });
+      await adjustBalance({ cardId, amount: -amt, type: "mise", gameId: "blackjack", note: `Mise ${amt} jeton(s) au Blackjack (table ${tableId})` });
       const rankUp = await recordWager(cardId, amt);
       table.seats.push({
         id: `${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
         cardId, steamId: socket.session.steamId, playerName: socket.session.playerName,
         bet: amt, hand: [], status: "waiting"
       });
-      broadcast();
+      broadcast(tableId);
       cb?.({ ok: true, rankUp });
     }catch(e){ cb?.({ ok: false, error: e.message }); }
   });
 
-  socket.on("table:blackjack:deal", (_payload, cb) => {
+  socket.on("table:blackjack:deal", ({ tableId } = {}, cb) => {
     if(!isCroupierOrAdmin(socket.session)) return cb?.({ ok: false, error: "Réservé au Croupier." });
+    if(!TABLE_IDS.includes(tableId)) return cb?.({ ok: false, error: "Table invalide." });
+    const table = tables.get(tableId);
     if(table.status !== "betting") return cb?.({ ok: false, error: "Ouvre d'abord les mises." });
     if(!table.seats.length) return cb?.({ ok: false, error: "Aucun joueur à la table." });
     table.seats.forEach(s => { s.hand = [randomCard(), randomCard()]; s.status = "playing"; });
     table.dealerHand = [randomCard(), randomCard()];
     table.hideSecond = true;
     table.status = "playing";
-    broadcast();
+    broadcast(tableId);
     cb?.({ ok: true });
   });
 
-  socket.on("table:blackjack:hit", async (_payload, cb) => {
+  socket.on("table:blackjack:hit", async ({ tableId } = {}, cb) => {
     try{
       if(!isPlayer(socket.session)) return cb?.({ ok: false, error: "Non connecté." });
+      if(!TABLE_IDS.includes(tableId)) return cb?.({ ok: false, error: "Table invalide." });
+      const table = tables.get(tableId);
       if(table.status !== "playing") return cb?.({ ok: false, error: "La manche n'est pas en cours." });
       const seat = table.seats.find(s => s.cardId === socket.session.cardId);
       if(!seat || seat.status !== "playing") return cb?.({ ok: false, error: "Ce n'est pas ton tour." });
       seat.hand.push(randomCard());
       const total = handTotal(seat.hand);
       seat.status = total > 21 ? "bust" : "playing";
-      broadcast();
+      broadcast(tableId);
       cb?.({ ok: true, bust: total > 21 });
     }catch(e){ cb?.({ ok: false, error: e.message }); }
   });
 
-  socket.on("table:blackjack:stand", (_payload, cb) => {
+  socket.on("table:blackjack:stand", ({ tableId } = {}, cb) => {
     if(!isPlayer(socket.session)) return cb?.({ ok: false, error: "Non connecté." });
+    if(!TABLE_IDS.includes(tableId)) return cb?.({ ok: false, error: "Table invalide." });
+    const table = tables.get(tableId);
     if(table.status !== "playing") return cb?.({ ok: false, error: "La manche n'est pas en cours." });
     const seat = table.seats.find(s => s.cardId === socket.session.cardId);
     if(!seat || seat.status !== "playing") return cb?.({ ok: false, error: "Ce n'est pas ton tour." });
     seat.status = "stand";
-    broadcast();
+    broadcast(tableId);
     cb?.({ ok: true });
   });
 
-  socket.on("table:blackjack:reveal", async (_payload, cb) => {
+  socket.on("table:blackjack:reveal", async ({ tableId } = {}, cb) => {
     try{
       if(!isCroupierOrAdmin(socket.session)) return cb?.({ ok: false, error: "Réservé au Croupier." });
+      if(!TABLE_IDS.includes(tableId)) return cb?.({ ok: false, error: "Table invalide." });
+      const table = tables.get(tableId);
       if(table.status !== "playing") return cb?.({ ok: false, error: "La manche n'est pas en cours." });
       if(table.seats.some(s => s.status === "playing")){
         return cb?.({ ok: false, error: "Certains joueurs n'ont pas fini leur tour (Tirer/Rester)." });
@@ -151,14 +170,14 @@ export function registerBlackjackHandlers(io, socket){
           try{
             await adjustBalance({
               cardId: seat.cardId, amount: payout, type: "gain", gameId: "blackjack",
-              note: `Blackjack manche #${roundId} — ${pTotal} vs ${dealerTotal}`
+              note: `Blackjack manche #${roundId} — ${pTotal} vs ${dealerTotal} (table ${tableId})`
             });
           }catch(e){ console.error("Paiement blackjack échoué :", e); }
         }else if(outcome === "push"){
           try{
             await adjustBalance({
               cardId: seat.cardId, amount: seat.bet, type: "gain", gameId: "blackjack",
-              note: `Égalité (push) manche #${roundId}`
+              note: `Égalité (push) manche #${roundId} (table ${tableId})`
             });
           }catch(e){ console.error("Remboursement push échoué :", e); }
         }else{
@@ -168,7 +187,7 @@ export function registerBlackjackHandlers(io, socket){
       }
       table.status = "result";
       table.hideSecond = false;
-      broadcast();
+      broadcast(tableId);
       cb?.({ ok: true });
     }catch(e){ cb?.({ ok: false, error: e.message }); }
   });

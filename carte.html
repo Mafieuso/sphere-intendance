@@ -162,8 +162,10 @@ async function renderCard(){
       ${[
         { href:"games/coinflip.html", gc:"#c9a227", icon:"🪙", name:"Pile ou Face" },
         { href:"games/dice.html", gc:"#1fae7c", icon:"🎲", name:"Lancer de Dés" },
-        { href:"games/roulette.html", gc:"#b3121a", icon:"🎡", name:"Roulette" },
-        { href:"games/blackjack.html", gc:"#c9a227", icon:"🃏", name:"Blackjack" },
+        { href:"games/roulette.html?table=1", gc:"#b3121a", icon:"🎡", name:"Roulette — Table 1" },
+        { href:"games/roulette.html?table=2", gc:"#b3121a", icon:"🎡", name:"Roulette — Table 2" },
+        { href:"games/blackjack.html?table=1", gc:"#c9a227", icon:"🃏", name:"Blackjack — Table 1" },
+        { href:"games/blackjack.html?table=2", gc:"#c9a227", icon:"🃏", name:"Blackjack — Table 2" },
         { href:"games/crash.html", gc:"#b3121a", icon:"📈", name:"Ascension Fulgurante" },
       ].map(g => locked
         ? `<div class="game-tile" style="--gc:${g.gc};opacity:.45;cursor:not-allowed;" title="Carte ${suspended?'suspendue':'expirée'}"><div class="gi">${g.icon}</div><div class="gn">${g.name}</div></div>`

@@ -57,6 +57,10 @@
     <div class="balance-pill" id="balancePill" style="display:none">—</div>
   </div>
   <div class="page-title" style="font-size:1.15rem;padding-bottom:8px;">🃏 Blackjack</div>
+  <div class="table-switcher" id="tableSwitcher">
+    <a class="table-switch-btn" href="?table=1">Table 1</a>
+    <a class="table-switch-btn" href="?table=2">Table 2</a>
+  </div>
   <div class="page-sub" id="statusLabel">Table blackjack-1</div>
 
   <div class="game-grid">
@@ -128,6 +132,16 @@ import { reactToOutcome } from "../assets/js/assistant.js";
 initFx();
 initUiFx();
 
+/* Deux tables indépendantes (blackjack-1 / blackjack-2) — choisie via
+   ?table=1|2 dans l'URL, pour que deux croupiers puissent animer une
+   manche chacun en parallèle. */
+const tableId = new URLSearchParams(location.search).get("table") === "2" ? "2" : "1";
+document.querySelectorAll(".table-switch-btn").forEach(a => {
+  const isCurrent = a.getAttribute("href") === `?table=${tableId}`;
+  a.classList.toggle("active", isCurrent);
+  if(isCurrent) a.removeAttribute("href");
+});
+
 const staff = getSession();
 const player = getPlayerSession();
 const isCroupier = staff && (staff.role === "croupier" || staff.role === "admin");
@@ -163,7 +177,7 @@ function renderHand(el, hand){
 document.getElementById("btnNewRound")?.addEventListener("click", async (e) => {
   e.target.disabled = true;
   try{
-    await request("table:blackjack:newRound");
+    await request("table:blackjack:newRound", { tableId });
     toast("Nouvelle manche — les joueurs peuvent rejoindre.", "success");
   }catch(err){ toast(err.message, "error"); }
 });
@@ -171,7 +185,7 @@ document.getElementById("btnNewRound")?.addEventListener("click", async (e) => {
 document.getElementById("btnDeal")?.addEventListener("click", async (e) => {
   e.target.disabled = true;
   try{
-    await request("table:blackjack:deal");
+    await request("table:blackjack:deal", { tableId });
     toast("Cartes distribuées.", "success");
   }catch(err){ toast(err.message, "error"); }
 });
@@ -179,7 +193,7 @@ document.getElementById("btnDeal")?.addEventListener("click", async (e) => {
 document.getElementById("btnReveal")?.addEventListener("click", async (e) => {
   e.target.disabled = true;
   try{
-    await request("table:blackjack:reveal");
+    await request("table:blackjack:reveal", { tableId });
     toast("Manche résolue.", "success");
   }catch(err){
     toast(err.message, "error");
@@ -196,7 +210,7 @@ document.getElementById("btnJoin")?.addEventListener("click", async () => {
   const btnJoin = document.getElementById("btnJoin");
   btnJoin.disabled = true;
   try{
-    const res = await request("table:blackjack:sit", { amount });
+    const res = await request("table:blackjack:sit", { tableId, amount });
     toast("Place à la table réservée.", "success");
     refreshBalance();
     if(res.rankUp) celebrateRankUp(res.rankUp);
@@ -219,7 +233,7 @@ async function actOnHand(action){
   const btnStand = document.getElementById("btnStand");
   btnHit.disabled = true; btnStand.disabled = true;
   try{
-    const res = await request(action === "hit" ? "table:blackjack:hit" : "table:blackjack:stand");
+    const res = await request(action === "hit" ? "table:blackjack:hit" : "table:blackjack:stand", { tableId });
     if(action === "hit"){
       if(res.bust) toast("Bust ! Tu dépasses 21.", "error");
     }else{
@@ -236,7 +250,7 @@ async function actOnHand(action){
 const celebratedSeats = new Set();
 const shakenSeats = new Set();
 function applyState(t){
-  document.getElementById("statusLabel").textContent = `Manche #${t.roundId} — ${({betting:'Mises ouvertes',playing:'En cours',result:'Résultat'})[t.status] || t.status}`;
+  document.getElementById("statusLabel").textContent = `Table blackjack-${tableId} — Manche #${t.roundId} — ${({betting:'Mises ouvertes',playing:'En cours',result:'Résultat'})[t.status] || t.status}`;
   renderHand(document.getElementById("dealerHand"), t.dealerHand || []);
   document.getElementById("dealerTotal").textContent = t.dealerTotal != null ? `Total : ${t.dealerTotal}` : "";
   const joinRow = document.getElementById("joinRow");
@@ -254,7 +268,7 @@ function applyState(t){
   renderSeats(t.seats);
 }
 on("table:blackjack:state", applyState);
-function joinTable(){ request("table:blackjack:join").then(res => applyState(res.state)); }
+function joinTable(){ request("table:blackjack:join", { tableId }).then(res => applyState(res.state)); }
 joinTable();
 onReconnect(joinTable);
 

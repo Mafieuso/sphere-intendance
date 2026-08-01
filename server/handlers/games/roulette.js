@@ -1,52 +1,59 @@
-/* Roulette européenne multijoueur — l'état de la manche (mises en cours,
-   statut) vit en mémoire côté serveur et est diffusé par Socket.io au salon
-   "table:roulette-1". Plus aucune lecture Firestore générée par l'affichage
-   en direct : seul le résultat final (transactions) est persisté. */
+/* Roulette européenne multijoueur — deux tables indépendantes ("1" et "2"),
+   chacune avec son propre état en mémoire et sa propre room Socket.io, pour
+   que deux croupiers puissent animer une manche chacun en parallèle. Plus
+   aucune lecture Firestore générée par l'affichage en direct : seul le
+   résultat final (transactions) est persisté. */
 import { isCroupierOrAdmin, isPlayer } from "../../auth.js";
 import { adjustBalance, isExpired, isSuspended } from "../cards.js";
 import { addRake } from "../jackpot.js";
 import { recordWager } from "../ranks.js";
 import { getDb } from "../../db.js";
 
-const TABLE_ID = "roulette-1";
-const ROOM = `table:${TABLE_ID}`;
+const TABLE_IDS = ["1", "2"];
 const RED_NUMBERS = new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
 function numberColor(n){ if(n === 0) return "green"; return RED_NUMBERS.has(n) ? "rouge" : "noir"; }
 
-let ioRef = null;
-const table = { status: "closed", roundId: 0, result: null, croupierName: null, bets: [] };
+function freshTable(){ return { status: "closed", roundId: 0, result: null, croupierName: null, bets: [] }; }
+const tables = new Map(TABLE_IDS.map(id => [id, freshTable()]));
 
-function publicState(){
-  return {
-    status: table.status, roundId: table.roundId, result: table.result,
-    croupierName: table.croupierName, bets: table.bets
-  };
+let ioRef = null;
+function roomFor(tableId){ return `table:roulette:${tableId}`; }
+function publicState(tableId){
+  const t = tables.get(tableId);
+  return { tableId, status: t.status, roundId: t.roundId, result: t.result, croupierName: t.croupierName, bets: t.bets };
 }
-function broadcast(){ ioRef?.to(ROOM).emit("table:roulette:state", publicState()); }
+function broadcast(tableId){ ioRef?.to(roomFor(tableId)).emit("table:roulette:state", publicState(tableId)); }
 
 export function initRoulette(io){ ioRef = io; }
 
 export function registerRouletteHandlers(io, socket){
-  socket.on("table:roulette:join", (_payload, cb) => {
-    socket.join(ROOM);
-    cb?.({ ok: true, state: publicState() });
+  socket.on("table:roulette:join", ({ tableId } = {}, cb) => {
+    if(!TABLE_IDS.includes(tableId)) return cb?.({ ok: false, error: "Table invalide." });
+    socket.join(roomFor(tableId));
+    cb?.({ ok: true, state: publicState(tableId) });
   });
-  socket.on("table:roulette:leave", () => socket.leave(ROOM));
+  socket.on("table:roulette:leave", ({ tableId } = {}) => {
+    if(TABLE_IDS.includes(tableId)) socket.leave(roomFor(tableId));
+  });
 
-  socket.on("table:roulette:newRound", (_payload, cb) => {
+  socket.on("table:roulette:newRound", ({ tableId } = {}, cb) => {
     if(!isCroupierOrAdmin(socket.session)) return cb?.({ ok: false, error: "Réservé au Croupier." });
+    if(!TABLE_IDS.includes(tableId)) return cb?.({ ok: false, error: "Table invalide." });
+    const table = tables.get(tableId);
     table.status = "betting";
     table.roundId += 1;
     table.result = null;
     table.croupierName = socket.session.name;
     table.bets = [];
-    broadcast();
+    broadcast(tableId);
     cb?.({ ok: true });
   });
 
-  socket.on("table:roulette:bet", async ({ betType, betValue, amount } = {}, cb) => {
+  socket.on("table:roulette:bet", async ({ tableId, betType, betValue, amount } = {}, cb) => {
     try{
       if(!isPlayer(socket.session)) return cb?.({ ok: false, error: "Non connecté." });
+      if(!TABLE_IDS.includes(tableId)) return cb?.({ ok: false, error: "Table invalide." });
+      const table = tables.get(tableId);
       if(table.status !== "betting") return cb?.({ ok: false, error: "Les mises ne sont pas ouvertes." });
       const amt = parseInt(amount, 10);
       if(!amt || amt <= 0) return cb?.({ ok: false, error: "Mise invalide." });
@@ -63,7 +70,7 @@ export function registerRouletteHandlers(io, socket){
       const label = betType === "color" ? betValue : ("numéro " + betValue);
       await adjustBalance({
         cardId, amount: -amt, type: "mise", gameId: "roulette",
-        note: `Mise ${amt} jeton(s) sur ${label}`
+        note: `Mise ${amt} jeton(s) sur ${label} (table ${tableId})`
       });
       const rankUp = await recordWager(cardId, amt);
       table.bets.push({
@@ -71,16 +78,18 @@ export function registerRouletteHandlers(io, socket){
         roundId: table.roundId, cardId, steamId: socket.session.steamId, playerName: socket.session.playerName,
         amount: amt, betType, betValue, createdAt: Date.now()
       });
-      broadcast();
+      broadcast(tableId);
       cb?.({ ok: true, rankUp });
     }catch(e){ cb?.({ ok: false, error: e.message }); }
   });
 
-  socket.on("table:roulette:closeAndSpin", (_payload, cb) => {
+  socket.on("table:roulette:closeAndSpin", ({ tableId } = {}, cb) => {
     if(!isCroupierOrAdmin(socket.session)) return cb?.({ ok: false, error: "Réservé au Croupier." });
+    if(!TABLE_IDS.includes(tableId)) return cb?.({ ok: false, error: "Table invalide." });
+    const table = tables.get(tableId);
     if(table.status !== "betting") return cb?.({ ok: false, error: "Aucune manche ouverte." });
     table.status = "spinning";
-    broadcast();
+    broadcast(tableId);
     cb?.({ ok: true });
 
     const roundId = table.roundId;
@@ -97,7 +106,7 @@ export function registerRouletteHandlers(io, socket){
           try{
             await adjustBalance({
               cardId: bet.cardId, amount: payout, type: "gain", gameId: "roulette",
-              note: `Roulette manche #${roundId} — numéro ${result}`
+              note: `Roulette manche #${roundId} — numéro ${result} (table ${tableId})`
             });
           }catch(e){ console.error("Paiement roulette échoué :", e); }
         }else{
@@ -106,7 +115,7 @@ export function registerRouletteHandlers(io, socket){
       }
       table.status = "result";
       table.result = result;
-      broadcast();
+      broadcast(tableId);
     }, 3700);
   });
 }

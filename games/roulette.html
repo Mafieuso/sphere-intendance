@@ -73,6 +73,10 @@
     <div class="balance-pill" id="balancePill" style="display:none">—</div>
   </div>
   <div class="page-title" style="font-size:1.15rem;padding-bottom:8px;">🎡 Roulette Européenne</div>
+  <div class="table-switcher" id="tableSwitcher">
+    <a class="table-switch-btn" href="?table=1">Table 1</a>
+    <a class="table-switch-btn" href="?table=2">Table 2</a>
+  </div>
   <div class="page-sub" id="tableStatusLabel">Table roulette-1</div>
 
   <div class="game-grid">
@@ -152,6 +156,17 @@ initUiFx();
 const RED_NUMBERS = new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
 function numberColor(n){ if(n===0) return "vert"; return RED_NUMBERS.has(n) ? "rouge" : "noir"; }
 
+/* Deux tables indépendantes (roulette-1 / roulette-2) — choisie via
+   ?table=1|2 dans l'URL, pour que deux croupiers puissent animer une
+   manche chacun en parallèle. */
+const tableId = new URLSearchParams(location.search).get("table") === "2" ? "2" : "1";
+document.querySelectorAll(".table-switch-btn").forEach(a => {
+  const isCurrent = a.getAttribute("href") === `?table=${tableId}`;
+  a.classList.toggle("active", isCurrent);
+  if(isCurrent) a.removeAttribute("href");
+});
+document.getElementById("tableStatusLabel").textContent = `Table roulette-${tableId}`;
+
 const staff = getSession();
 const player = getPlayerSession();
 const isCroupier = staff && (staff.role === "croupier" || staff.role === "admin");
@@ -213,7 +228,7 @@ document.getElementById("btnPlaceBet")?.addEventListener("click", async () => {
   const btn = document.getElementById("btnPlaceBet");
   btn.disabled = true;
   try{
-    const res = await request("table:roulette:bet", { betType: selectedBet.type, betValue: selectedBet.value, amount });
+    const res = await request("table:roulette:bet", { tableId, betType: selectedBet.type, betValue: selectedBet.value, amount });
     toast("Mise placée !", "success");
     document.getElementById("myBetHint").textContent = `Mise en cours : ${amount} 🪙 (${formatYen(tokensToYen(amount))}) sur ${selectedBet.type==='color'?selectedBet.value:('numéro '+selectedBet.value)}`;
     refreshBalance();
@@ -230,7 +245,7 @@ document.getElementById("btnPlaceBet")?.addEventListener("click", async () => {
 document.getElementById("btnNewRound")?.addEventListener("click", async (e) => {
   e.target.disabled = true;
   try{
-    await request("table:roulette:newRound");
+    await request("table:roulette:newRound", { tableId });
     toast("Nouvelle manche ouverte — les joueurs peuvent miser.", "success");
   }catch(err){ toast(err.message, "error"); }
 });
@@ -238,7 +253,7 @@ document.getElementById("btnNewRound")?.addEventListener("click", async (e) => {
 document.getElementById("btnCloseSpin")?.addEventListener("click", async (e) => {
   e.target.disabled = true;
   try{
-    await request("table:roulette:closeAndSpin");
+    await request("table:roulette:closeAndSpin", { tableId });
     toast("Roue lancée !", "info");
   }catch(err){ toast(err.message, "error"); e.target.disabled = false; }
 });
@@ -298,7 +313,7 @@ function applyState(table){
   lastStatus = table.status;
 }
 on("table:roulette:state", applyState);
-function joinTable(){ request("table:roulette:join").then(res => applyState(res.state)); }
+function joinTable(){ request("table:roulette:join", { tableId }).then(res => applyState(res.state)); }
 joinTable();
 onReconnect(joinTable);
 
