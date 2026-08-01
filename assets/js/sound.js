@@ -90,13 +90,32 @@ export function playFanfare(){
   [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => tone(f, { duration: .35, type: "triangle", gain: .08, delay: i * .09 }));
 }
 
-/* ── Ambiance de fond — un swing "cantina" ORIGINAL (basse qui marche,
-   petit riff cuivré syncopé, pulsation balai en fond), composé en gamme
-   Phrygien dominant (couleur klezmer/exotique), pas une reprise du thème
-   Star Wars : mélodie, accords et rythme sont écrits ici, pas copiés.
-   Séquenceur "lookahead" classique en Web Audio (on planifie quelques
-   centaines de ms à l'avance, avec re-vérification régulière) plutôt que
-   de compter sur setTimeout pour le tempo lui-même. */
+/* ── Ambiance de fond — priorité à un vrai fichier audio déposé par
+   l'Intendance (assets/audio/ambiance.mp3), lu en boucle et piloté par le
+   même volume/coupure que le reste. Tant qu'aucun fichier n'est présent,
+   on retombe sur un swing "cantina" ORIGINAL synthétisé (basse qui marche,
+   petit riff cuivré syncopé, pulsation balai), composé en gamme Phrygien
+   dominant (couleur klezmer/exotique) — mélodie, accords et rythme écrits
+   ici, pas une reprise du thème Star Wars. Séquenceur "lookahead" classique
+   en Web Audio (on planifie quelques centaines de ms à l'avance, avec
+   re-vérification régulière) plutôt que de compter sur setTimeout pour le
+   tempo lui-même. */
+const AMBIENCE_FILE = "/assets/audio/ambiance.mp3";
+let fileAmbience = null;
+let fileAmbienceChecked = false;
+
+function tryLoadFileAmbience(){
+  return new Promise((resolve) => {
+    const audio = new Audio(AMBIENCE_FILE);
+    audio.loop = true;
+    audio.preload = "auto";
+    const done = (ok) => resolve(ok ? audio : null);
+    audio.addEventListener("canplaythrough", () => done(true), { once: true });
+    audio.addEventListener("error", () => done(false), { once: true });
+    setTimeout(() => done(false), 4000);
+    audio.load();
+  });
+}
 const BPM = 132;
 const BEAT = 60 / BPM;
 const SWING_LONG = BEAT * .62, SWING_SHORT = BEAT * .38; // paire d'égales inégales (feel "swing")
@@ -185,11 +204,23 @@ function scheduleAmbience(){
 }
 
 let ambienceRunning = false;
-function startAmbience(){
+async function startAmbience(){
   if(ambienceRunning || muted || volume <= 0) return;
   const c = ensureCtx();
   if(!c || c.state === "suspended") return;
   ambienceRunning = true;
+
+  if(!fileAmbienceChecked){
+    fileAmbienceChecked = true;
+    fileAmbience = await tryLoadFileAmbience();
+  }
+  if(!ambienceRunning) return; // coupé pendant le chargement du fichier
+
+  if(fileAmbience){
+    fileAmbience.volume = effectiveVolume();
+    fileAmbience.play().catch(() => {});
+    return;
+  }
   stepIndex = 0;
   nextStepTime = c.currentTime + .1;
   scheduleAmbience();
@@ -198,6 +229,7 @@ function startAmbience(){
 function stopAmbience(){
   if(!ambienceRunning) return;
   ambienceRunning = false;
+  if(fileAmbience){ fileAmbience.pause(); return; }
   clearTimeout(schedulerTimer);
   schedulerTimer = null;
 }
@@ -214,13 +246,14 @@ export function setSoundMuted(v){
 export function setSoundVolume(v){
   volume = Math.max(0, Math.min(1, v));
   localStorage.setItem("sphereIntendanceSoundVolume", String(volume));
+  if(fileAmbience) fileAmbience.volume = effectiveVolume();
   if(volume <= 0) stopAmbience();
   else if(!muted) startAmbience();
 }
 
-/* Petit contrôle flottant en haut à gauche (seul coin encore libre : le
-   bandeau Jackpot prend le haut, la mascotte le bas-gauche, les toasts le
-   bas-droite) — icône pour couper/rétablir + curseur pour ajuster. */
+/* Petit contrôle flottant en haut à droite (la gauche est prise par la
+   barre latérale du staff sur les pages Intendance/Hôte/Croupier) — icône
+   pour couper/rétablir + curseur pour ajuster. */
 export function mountSoundToggle(){
   if(document.getElementById("soundControl")) return;
   const wrap = document.createElement("div");
