@@ -90,61 +90,116 @@ export function playFanfare(){
   [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => tone(f, { duration: .35, type: "triangle", gain: .08, delay: i * .09 }));
 }
 
-/* ── Nappe d'ambiance de fond — accord suspendu très doux (pas une
-   mélodie), qui "respire" lentement (LFO sur le volume) plutôt que de
-   rester figé. Démarre au premier geste utilisateur (unlock), s'arrête
-   proprement si coupé, reprend si le son est rétabli. */
-let ambience = null;
+/* ── Ambiance de fond — un swing "cantina" ORIGINAL (basse qui marche,
+   petit riff cuivré syncopé, pulsation balai en fond), composé en gamme
+   Phrygien dominant (couleur klezmer/exotique), pas une reprise du thème
+   Star Wars : mélodie, accords et rythme sont écrits ici, pas copiés.
+   Séquenceur "lookahead" classique en Web Audio (on planifie quelques
+   centaines de ms à l'avance, avec re-vérification régulière) plutôt que
+   de compter sur setTimeout pour le tempo lui-même. */
+const BPM = 132;
+const BEAT = 60 / BPM;
+const SWING_LONG = BEAT * .62, SWING_SHORT = BEAT * .38; // paire d'égales inégales (feel "swing")
 
+// Basse (une note par temps, 4 mesures à 4 temps = 16 temps, en Ré Phrygien dominant.
+const BASS_PATTERN = [
+  146.83, 185.00, 220.00, 261.63,   // Ré7 : Ré-Fa#-La-Do
+  196.00, 233.08, 293.66, 233.08,   // Solm : Sol-Sib-Ré-Sib
+  220.00, 261.63, 293.66, 261.63,   // La7  : La-Do-Ré-Do
+  146.83, 220.00, 146.83, 185.00,   // pédale Ré, résolution
+];
+// Petit riff syncopé (cuivré), joué sur les 2 dernières mesures (temps 8 à 15) —
+// null = silence. Position = index de temps (pas d'eighth) dans le cycle de 32.
+const LEAD_RIFF = {
+  17: 440.00, 20: 392.00, 21: 369.99, 23: 293.66,
+  26: 440.00, 28: 466.16, 30: 587.33,
+};
+
+let schedulerTimer = null;
+let nextStepTime = 0;
+let stepIndex = 0;
+
+function pluck(freq, t0, { duration = .18, type = "sine", gain = .1 } = {}){
+  const v = effectiveVolume();
+  if(v <= 0) return;
+  const c = ctx;
+  const osc = c.createOscillator();
+  const g = c.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t0);
+  g.gain.setValueAtTime(0, t0);
+  g.gain.linearRampToValueAtTime(gain * v, t0 + .008);
+  g.gain.exponentialRampToValueAtTime(.0001, t0 + duration);
+  osc.connect(g); g.connect(c.destination);
+  osc.start(t0); osc.stop(t0 + duration + .03);
+}
+
+function leadNote(freq, t0){
+  const v = effectiveVolume();
+  if(v <= 0) return;
+  const c = ctx;
+  const osc = c.createOscillator();
+  const filter = c.createBiquadFilter();
+  const g = c.createGain();
+  osc.type = "sawtooth";
+  osc.frequency.setValueAtTime(freq, t0);
+  filter.type = "bandpass"; filter.frequency.value = freq * 1.5; filter.Q.value = 3;
+  g.gain.setValueAtTime(0, t0);
+  g.gain.linearRampToValueAtTime(.09 * v, t0 + .01);
+  g.gain.exponentialRampToValueAtTime(.0001, t0 + .22);
+  osc.connect(filter); filter.connect(g); g.connect(c.destination);
+  osc.start(t0); osc.stop(t0 + .26);
+}
+
+function swingTick(t0){
+  const v = effectiveVolume();
+  if(v <= 0) return;
+  const c = ctx;
+  const bufferSize = Math.floor(c.sampleRate * .04);
+  const buffer = c.createBuffer(1, bufferSize, c.sampleRate);
+  const data = buffer.getChannelData(0);
+  for(let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+  const noise = c.createBufferSource();
+  noise.buffer = buffer;
+  const filter = c.createBiquadFilter();
+  filter.type = "highpass"; filter.frequency.value = 4000;
+  const g = c.createGain();
+  g.gain.setValueAtTime(.05 * v, t0);
+  g.gain.exponentialRampToValueAtTime(.0001, t0 + .04);
+  noise.connect(filter); filter.connect(g); g.connect(c.destination);
+  noise.start(t0); noise.stop(t0 + .04);
+}
+
+function scheduleAmbience(){
+  const c = ctx;
+  while(nextStepTime < c.currentTime + .25){
+    const step = stepIndex % 32;
+    const onBeat = step % 2 === 0; // pas long (temps) vs pas court (contretemps swingué)
+    if(onBeat) pluck(BASS_PATTERN[Math.floor(step / 2) % 16], nextStepTime, { duration: .3, type: "triangle", gain: .12 });
+    else swingTick(nextStepTime);
+    if(LEAD_RIFF[step] != null) leadNote(LEAD_RIFF[step], nextStepTime);
+    nextStepTime += onBeat ? SWING_LONG : SWING_SHORT;
+    stepIndex++;
+  }
+  schedulerTimer = setTimeout(scheduleAmbience, 60);
+}
+
+let ambienceRunning = false;
 function startAmbience(){
-  if(ambience || muted || volume <= 0) return;
+  if(ambienceRunning || muted || volume <= 0) return;
   const c = ensureCtx();
   if(!c || c.state === "suspended") return;
-  const master = c.createGain();
-  master.gain.setValueAtTime(0, c.currentTime);
-  master.gain.linearRampToValueAtTime(.16 * volume, c.currentTime + 2.5);
-  master.connect(c.destination);
-
-  const lfo = c.createOscillator();
-  const lfoGain = c.createGain();
-  lfo.frequency.value = .06;
-  lfoGain.gain.value = .05 * volume;
-  lfo.connect(lfoGain); lfoGain.connect(master.gain);
-  lfo.start();
-
-  const notes = [98, 146.83, 220, 293.66]; // Sol1-Ré2-La2-Ré3 : accord suspendu, feutré
-  const oscs = notes.map((f, i) => {
-    const osc = c.createOscillator();
-    osc.type = "sine";
-    osc.frequency.value = f * (1 + (i === 2 ? .003 : 0)); // très léger battement sur une voix
-    const g = c.createGain();
-    g.gain.value = i === 0 ? .5 : .22;
-    osc.connect(g); g.connect(master);
-    osc.start();
-    return osc;
-  });
-
-  ambience = { master, lfo, oscs };
+  ambienceRunning = true;
+  stepIndex = 0;
+  nextStepTime = c.currentTime + .1;
+  scheduleAmbience();
 }
 
 function stopAmbience(){
-  if(!ambience) return;
-  const c = ctx;
-  const { master, lfo, oscs } = ambience;
-  if(c){
-    master.gain.cancelScheduledValues(c.currentTime);
-    master.gain.linearRampToValueAtTime(.0001, c.currentTime + .8);
-  }
-  setTimeout(() => {
-    try{ lfo.stop(); oscs.forEach(o => o.stop()); }catch{}
-  }, 900);
-  ambience = null;
-}
-
-function applyVolumeToAmbience(){
-  if(!ambience || !ctx) return;
-  ambience.master.gain.cancelScheduledValues(ctx.currentTime);
-  ambience.master.gain.linearRampToValueAtTime(.16 * effectiveVolume(), ctx.currentTime + .3);
+  if(!ambienceRunning) return;
+  ambienceRunning = false;
+  clearTimeout(schedulerTimer);
+  schedulerTimer = null;
 }
 
 export function isSoundMuted(){ return muted; }
@@ -154,15 +209,13 @@ export function setSoundMuted(v){
   muted = v;
   localStorage.setItem("sphereIntendanceSoundMuted", v ? "1" : "0");
   if(muted) stopAmbience(); else startAmbience();
-  applyVolumeToAmbience();
 }
 
 export function setSoundVolume(v){
   volume = Math.max(0, Math.min(1, v));
   localStorage.setItem("sphereIntendanceSoundVolume", String(volume));
-  if(volume <= 0){ stopAmbience(); }
-  else if(!muted && !ambience){ startAmbience(); }
-  applyVolumeToAmbience();
+  if(volume <= 0) stopAmbience();
+  else if(!muted) startAmbience();
 }
 
 /* Petit contrôle flottant en haut à gauche (seul coin encore libre : le
