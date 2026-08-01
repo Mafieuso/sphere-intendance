@@ -2,6 +2,7 @@
    entrée échelonnée, traînée de curseur. Purement cosmétique — n'affecte
    jamais la logique métier. */
 import { tokenDisplayHTML } from "./economy.js";
+import { playCoin, playThud, playFanfare } from "./sound.js";
 
 /* Les cartes de menu/navigation (gate-card, table-card, game-tile) sont exclues :
    le tilt qui suit la souris donnait l'impression que les menus "bougeaient" en
@@ -94,6 +95,7 @@ export function ringPulse(x, y, color = '#f5d870'){
 
 /* Explosion de particules dorées/vertes à un point précis de l'écran (victoire, création, etc.) */
 export function burst(x, y, { count = 22, colors = ['#f5d870','#c9a227','#5ee0af'] } = {}){
+  playCoin();
   ringPulse(x, y, colors[0]);
   for(let i = 0; i < count; i++){
     const s = document.createElement('div');
@@ -113,12 +115,14 @@ export function burst(x, y, { count = 22, colors = ['#f5d870','#c9a227','#5ee0af
    passe pas, pas seulement sur les victoires. */
 export function shake(el){
   if(!el) return;
+  playThud();
   el.classList.remove('wow-shake'); void el.offsetWidth; el.classList.add('wow-shake');
 }
 
 /* Flash plein écran + confettis plus généreux, réservé aux gros gains
    (blackjack naturel, numéro plein, gros multiplicateur). */
 export function jackpotBurst(x, y, opts = {}){
+  playFanfare();
   const f = document.createElement('div');
   f.className = 'wow-flash';
   document.body.appendChild(f);

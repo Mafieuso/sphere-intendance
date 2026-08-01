@@ -16,11 +16,12 @@
 import { getDb } from "../db.js";
 import { adjustBalance, isExpired, isSuspended, casinoProfitTokens } from "./cards.js";
 import { isAdmin, isPlayer } from "../auth.js";
+import { logAction } from "./logs.js";
 import { tokensToYen, yenToTokens } from "../../assets/js/economy.js";
 
-const RAKE_RATE = 0.03;      // part symbolique de chaque mise "fléchée" vers le Jackpot
-const POOL_SHARE = 0.25;     // part de cette somme qui rejoint vraiment la cagnotte — le reste reste profit
-const ENTRY_COST = 10;       // coût d'inscription, en jetons (inchangé, bien réel)
+const RAKE_RATE = 0.03;            // part symbolique de chaque mise "fléchée" vers le Jackpot
+const DEFAULT_POOL_SHARE_PCT = 25; // par défaut : 25% rejoint la cagnotte, 75% reste profit — ajustable en direct par l'Intendance
+const ENTRY_COST = 10;             // coût d'inscription, en jetons (inchangé, bien réel)
 const JACKPOT_ID = "current";
 
 let ioRef = null;
@@ -30,6 +31,16 @@ async function getJackpotDoc(){
   const db = await getDb();
   const doc = await db.collection("jackpot").findOne({ _id: JACKPOT_ID });
   return doc || { _id: JACKPOT_ID, poolYen: 0, entrants: [] };
+}
+
+/* Le taux de reversement n'est jamais transmis aux joueurs (publicState) —
+   seule l'Intendance peut le consulter/modifier, via jackpot:getConfig et
+   jackpot:setRate. Peu importe sa valeur, le paiement final reste de toute
+   façon plafonné au profit courant du casino (voir jackpot:draw) : ajuster
+   ce taux ne peut donc jamais faire passer l'Intendance en négatif. */
+function poolShareOf(doc){
+  const pct = typeof doc.poolSharePercent === "number" ? doc.poolSharePercent : DEFAULT_POOL_SHARE_PCT;
+  return pct / 100;
 }
 
 function publicState(doc){
@@ -46,8 +57,9 @@ async function broadcastJackpot(){
    est proportionnel à l'argent qui circule, pas au résultat. */
 export async function addRake(betAmount){
   try{
+    const doc = await getJackpotDoc();
     const flaggedYen = tokensToYen(betAmount) * RAKE_RATE;
-    const poolYen = Math.floor(flaggedYen * POOL_SHARE);
+    const poolYen = Math.floor(flaggedYen * poolShareOf(doc));
     if(poolYen <= 0) return;
     const db = await getDb();
     await db.collection("jackpot").updateOne(
@@ -87,7 +99,7 @@ export function registerJackpotHandlers(io, socket){
         cardId, amount: -ENTRY_COST, type: "mise", gameId: "jackpot",
         note: `Inscription au Jackpot (${ENTRY_COST} jetons)`
       });
-      const poolYen = Math.floor(tokensToYen(ENTRY_COST) * POOL_SHARE);
+      const poolYen = Math.floor(tokensToYen(ENTRY_COST) * poolShareOf(doc));
       await db.collection("jackpot").updateOne(
         { _id: JACKPOT_ID },
         { $inc: { poolYen }, $push: { entrants: { cardId, playerName: socket.session.playerName } } },
@@ -152,6 +164,34 @@ export function registerJackpotHandlers(io, socket){
       );
       broadcastJackpot();
       cb?.({ ok: true, refunded: entrants.length });
+    }catch(e){ cb?.({ ok: false, error: e.message }); }
+  });
+
+  /* Réglage réservé à l'Intendance — jamais exposé aux joueurs. */
+  socket.on("jackpot:getConfig", async (_payload, cb) => {
+    try{
+      if(!isAdmin(socket.session)) return cb?.({ ok: false, error: "Réservé à l'Intendance." });
+      const doc = await getJackpotDoc();
+      cb?.({ ok: true, poolSharePercent: Math.round(poolShareOf(doc) * 100) });
+    }catch(e){ cb?.({ ok: false, error: e.message }); }
+  });
+
+  socket.on("jackpot:setRate", async ({ poolSharePercent } = {}, cb) => {
+    try{
+      if(!isAdmin(socket.session)) return cb?.({ ok: false, error: "Réservé à l'Intendance." });
+      const pct = Math.round(Number(poolSharePercent));
+      if(!Number.isFinite(pct) || pct < 1 || pct > 90){
+        return cb?.({ ok: false, error: "Le taux doit être compris entre 1 et 90%." });
+      }
+      const db = await getDb();
+      await db.collection("jackpot").updateOne(
+        { _id: JACKPOT_ID }, { $set: { poolSharePercent: pct } }, { upsert: true }
+      );
+      await logAction({
+        action: "JACKPOT_RATE", detail: `Taux de reversement du Jackpot ajusté à ${pct}%`,
+        staffId: socket.session.staffId, staffName: socket.session.name
+      });
+      cb?.({ ok: true, poolSharePercent: pct });
     }catch(e){ cb?.({ ok: false, error: e.message }); }
   });
 }

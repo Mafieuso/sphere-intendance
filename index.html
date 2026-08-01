@@ -14,10 +14,16 @@
 <div id="vignette"></div>
 <div class="particles" style="position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden"></div>
 
+<div class="entrance-doors" id="entranceDoors">
+  <div class="entrance-door entrance-door-left"></div>
+  <div class="entrance-door entrance-door-right"></div>
+  <div class="entrance-kanji">扉</div>
+</div>
+
 <div class="gate-wrap">
-  <div class="gate-crest">⛩ ✦ ⛩</div>
-  <div class="gate-title">SPHÈRE DE<br>L'INTENDANCE</div>
-  <div class="gate-sub">Cercle Privé — Sur Invitation Uniquement</div>
+  <div class="gate-crest wow-crest-in">⛩ ✦ ⛩</div>
+  <div class="gate-title wow-title-in">SPHÈRE DE<br>L'INTENDANCE</div>
+  <div class="gate-sub wow-sub-in">Cercle Privé — Sur Invitation Uniquement</div>
 
   <div class="gate-grid">
     <a class="gate-card" href="carte.html" style="--gc:#c9a227;--gc-glow:rgba(201,162,39,.2)">
@@ -39,11 +45,26 @@
 </div>
 
 <script type="module">
-import { initFx } from "./assets/js/fx.js";
+import { initFx, spawnSuitSymbols } from "./assets/js/fx.js";
 import { initUiFx, staggerIn } from "./assets/js/uiFx.js";
+import { playGong } from "./assets/js/sound.js";
 initFx();
 initUiFx();
 staggerIn('.gate-card');
+spawnSuitSymbols();
+
+const doors = document.getElementById('entranceDoors');
+if(doors){
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches){
+    doors.remove();
+  }else{
+    setTimeout(() => {
+      doors.classList.add('entrance-open');
+      playGong();
+      setTimeout(() => doors.remove(), 1300);
+    }, 400);
+  }
+}
 </script>
 </body>
 </html>

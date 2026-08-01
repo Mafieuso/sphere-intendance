@@ -74,6 +74,27 @@
           <button class="btn btn-ghost btn-sm" id="btnResetJackpot">Réinitialiser sans tirage</button>
         </div>
       </div>
+      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:220px;">
+          <label class="form-label" style="display:block;margin-bottom:8px;">Part reversée aux gagnants</label>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <input type="range" id="jackpotRateSlider" min="1" max="90" value="25" style="flex:1;accent-color:var(--gold);">
+            <span class="rank-badge" id="jackpotRateLabel" style="min-width:52px;text-align:center;">25%</span>
+          </div>
+          <div style="font-size:.6rem;color:var(--text-muted);margin-top:6px;">Le reste reste acquis au profit — le paiement final est de toute façon toujours plafonné au profit du casino.</div>
+        </div>
+        <button class="btn btn-gold btn-sm" id="btnSaveJackpotRate">Enregistrer</button>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-bottom:20px;">
+      <div class="panel-title">⚙ Réglages Avancés</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;">
+        <div style="font-size:.72rem;color:var(--text-muted);max-width:480px;">
+          En cas de souci sur les compteurs affichés (ex : après une manipulation de test), le profit du casino peut être remis à zéro. Les soldes des cartes et l'historique des transactions ne sont jamais touchés.
+        </div>
+        <button class="btn btn-crimson btn-sm" id="btnResetStats">↺ Réinitialiser les compteurs à 0</button>
+      </div>
     </div>
 
     <div class="admin-grid">
@@ -160,6 +181,21 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="modalResetStats">
+  <div class="modal-box" style="max-width:440px;">
+    <div class="modal-title" style="color:#ff8a8a;">🔸 Réinitialiser les compteurs à 0 ?</div>
+    <p style="font-size:.85rem;color:var(--text-muted);line-height:1.6;">
+      Le profit affiché du casino repart à 0. Les soldes des cartes joueur, leurs transactions
+      et le journal d'audit ne sont pas touchés — seul le compteur agrégé est remis à zéro.
+      Cette action est irréversible.
+    </p>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="document.getElementById('modalResetStats').classList.remove('open')">Annuler</button>
+      <button class="btn btn-crimson" id="btnConfirmResetStats">Réinitialiser à 0</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modalDeleteCard">
   <div class="modal-box" style="max-width:440px;">
     <div class="modal-title" style="color:#ff8a8a;">🗑 Supprimer cette carte ?</div>
@@ -209,6 +245,45 @@ function renderJackpotAdmin(state){
 }
 on("jackpot:state", renderJackpotAdmin);
 request("jackpot:join").then(res => renderJackpotAdmin(res.state));
+
+/* ── Taux de reversement du Jackpot (ajustable en direct) ── */
+const rateSlider = document.getElementById("jackpotRateSlider");
+const rateLabel = document.getElementById("jackpotRateLabel");
+rateSlider.addEventListener("input", () => { rateLabel.textContent = `${rateSlider.value}%`; });
+request("jackpot:getConfig").then(res => {
+  rateSlider.value = res.poolSharePercent;
+  rateLabel.textContent = `${res.poolSharePercent}%`;
+}).catch(() => {});
+document.getElementById("btnSaveJackpotRate").addEventListener("click", async (e) => {
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  try{
+    const res = await request("jackpot:setRate", { poolSharePercent: Number(rateSlider.value) });
+    toast(`Taux de reversement fixé à ${res.poolSharePercent}%.`, "success");
+  }catch(err){
+    toast(err.message, "error");
+  }finally{
+    btn.disabled = false;
+  }
+});
+
+/* ── Réinitialisation des compteurs ── */
+document.getElementById("btnResetStats").addEventListener("click", () => {
+  document.getElementById("modalResetStats").classList.add("open");
+});
+document.getElementById("btnConfirmResetStats").addEventListener("click", async (e) => {
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  try{
+    await request("stats:resetProfit");
+    document.getElementById("modalResetStats").classList.remove("open");
+    toast("Compteurs réinitialisés à 0.", "success");
+  }catch(err){
+    toast(err.message, "error");
+  }finally{
+    btn.disabled = false;
+  }
+});
 
 document.getElementById("btnDrawJackpot").addEventListener("click", () => {
   document.getElementById("modalDrawJackpot").classList.add("open");

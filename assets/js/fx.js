@@ -1,5 +1,6 @@
 /* Effets atmosphériques partagés : braises animées + particules dorées.
    Attend un <canvas id="embers"> et un <div class="particles"> dans la page. */
+import { playWhoosh, mountSoundToggle, initClickSounds } from "./sound.js";
 export function initEmbers(){
   const cv = document.getElementById('embers');
   if(!cv) return;
@@ -45,6 +46,25 @@ export function spawnParticles(){
   }
 }
 
+/* Symboles de jeu (cartes, mahjong, dés) qui dérivent lentement en fond —
+   réservé à l'accueil, pour ne pas alourdir visuellement les pages de jeu. */
+export function spawnSuitSymbols(){
+  const container = document.querySelector('.particles');
+  if(!container) return;
+  const glyphs = ['♠', '♥', '♦', '♣', '🀄', '🎲'];
+  for(let i = 0; i < 14; i++){
+    const s = document.createElement('div');
+    const x = Math.random() * 100, delay = Math.random() * 25, dur = Math.random() * 22 + 18, size = Math.random() * 10 + 14;
+    const glyph = glyphs[Math.floor(Math.random() * glyphs.length)];
+    const isRed = glyph === '♥' || glyph === '♦';
+    s.textContent = glyph;
+    s.style.cssText = `position:fixed;left:${x}%;bottom:-40px;font-size:${size}px;
+      color:${isRed ? '#b3121a' : '#c9a227'};pointer-events:none;z-index:0;
+      animation:suitFloat ${dur}s ${delay}s infinite linear;`;
+    container.appendChild(s);
+  }
+}
+
 /* Transition de page — un voile qui se dissipe à l'arrivée et se referme
    juste avant de quitter la page (liens internes, même origine, clic
    simple), pour éviter le "saut" instantané entre deux pages. */
@@ -68,6 +88,7 @@ export function initPageTransitions(){
     try{ url = new URL(a.href, location.href); }catch{ return; }
     if(url.origin !== location.origin) return;
     e.preventDefault();
+    playWhoosh();
     const exit = document.createElement('div');
     exit.className = 'page-transition-overlay';
     document.body.appendChild(exit);
@@ -80,5 +101,7 @@ export function initFx(){
   initEmbers();
   spawnParticles();
   initPageTransitions();
+  mountSoundToggle();
+  initClickSounds();
   import("./assistant.js").then(m => m.mountAssistant());
 }

@@ -398,6 +398,61 @@ a{color:inherit;text-decoration:none;}
 .assistant-panel-input input:focus{outline:none;border-color:var(--gold);}
 @media(max-width:480px){.assistant-panel{width:calc(100vw - 36px);}}
 
+/* ── Bouton son (haut-gauche — le seul coin libre de tout élément fixe) ── */
+.sound-toggle{position:fixed;top:70px;left:16px;z-index:9600;width:34px;height:34px;border-radius:50%;
+  border:1px solid var(--border-h);background:rgba(12,7,6,.85);color:var(--gold);font-size:1rem;
+  display:flex;align-items:center;justify-content:center;transition:.2s;box-shadow:0 4px 12px rgba(0,0,0,.5);}
+.sound-toggle:hover{border-color:var(--gold);background:rgba(201,162,39,.12);transform:scale(1.08);}
+
+/* ── Portail d'entrée (index.html uniquement) : deux battants qui
+   s'écartent au chargement, avec un caractère qui s'efface au passage. ── */
+.entrance-doors{position:fixed;inset:0;z-index:100000;display:flex;pointer-events:none;}
+.entrance-door{flex:1;background:linear-gradient(135deg,#1a0505,#050202 65%);position:relative;
+  box-shadow:inset 0 0 90px rgba(179,18,26,.3);transition:transform 1.15s cubic-bezier(.76,0,.24,1);}
+.entrance-door-left{border-right:2px solid var(--gold);}
+.entrance-door-right{border-left:2px solid var(--gold);}
+.entrance-doors.entrance-open .entrance-door-left{transform:translateX(-100%);}
+.entrance-doors.entrance-open .entrance-door-right{transform:translateX(100%);}
+.entrance-doors.entrance-done{display:none;}
+.entrance-kanji{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:3.4rem;color:var(--gold);
+  opacity:.9;text-shadow:0 0 34px rgba(201,162,39,.55);transition:opacity .5s ease;font-family:'Cinzel Decorative',serif;}
+.entrance-doors.entrance-open .entrance-kanji{opacity:0;}
+@media(prefers-reduced-motion:reduce){ .entrance-doors{display:none;} }
+
+/* ── Mandala tournant derrière le blason de l'accueil ── */
+.gate-wrap::before{content:'';position:absolute;top:50%;left:50%;width:560px;height:560px;max-width:140vw;
+  transform:translate(-50%,-55%);border-radius:50%;pointer-events:none;z-index:-1;
+  background:conic-gradient(from 0deg,transparent,rgba(201,162,39,.09),transparent 30%,transparent 60%,rgba(179,18,26,.06),transparent 90%);
+  animation:mandalaSpin 50s linear infinite;}
+@keyframes mandalaSpin{to{transform:translate(-50%,-55%) rotate(360deg);}}
+
+/* ── Révélation du titre au chargement (par-dessus le scintillement continu déjà en place) ── */
+.gate-title.wow-title-in{animation:titleReveal 1.3s cubic-bezier(.16,1,.3,1) both;animation-delay:.5s;}
+@keyframes titleReveal{
+  0%{opacity:0;transform:scale(.82) translateY(16px);letter-spacing:26px;filter:blur(8px);}
+  55%{opacity:1;filter:blur(0);}
+  100%{opacity:1;transform:scale(1) translateY(0);letter-spacing:8px;filter:blur(0);}
+}
+.gate-crest.wow-crest-in{animation:wowRise .6s cubic-bezier(.16,1,.3,1) both;animation-delay:.2s;}
+.gate-sub.wow-sub-in{animation:wowRise .6s cubic-bezier(.16,1,.3,1) both;animation-delay:1.1s;}
+
+/* ── Balayage doré ambiant sur les cartes d'accueil et le bandeau Jackpot ── */
+.gate-card,.jackpot-widget{position:relative;overflow:hidden;}
+.gate-card::before,.jackpot-widget::before{content:'';position:absolute;top:-60%;left:-30%;width:26%;height:220%;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.07),transparent);
+  transform:translateX(-120%) rotate(10deg);animation:shimmerSweep 7s ease-in-out infinite;pointer-events:none;}
+.gate-card:nth-child(2)::before{animation-delay:1.4s;}
+.gate-card:nth-child(3)::before{animation-delay:2.8s;}
+@keyframes shimmerSweep{0%,25%{transform:translateX(-120%) rotate(10deg);}55%,100%{transform:translateX(420%) rotate(10deg);}}
+
+/* ── Symboles de jeu qui dérivent en arrière-plan (accueil uniquement) ── */
+@keyframes suitFloat{
+  0%{transform:translateY(0) rotate(0deg);opacity:0;}
+  8%{opacity:.16;}
+  92%{opacity:.16;}
+  100%{transform:translateY(-112vh) rotate(20deg);opacity:0;}
+}
+
 /* ══════════════════════════════════════════════════════
    ═══════════  MISE EN PAGE JEU + RÈGLEMENT  ═══════════
    ══════════════════════════════════════════════════════ */

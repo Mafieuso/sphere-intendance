@@ -5,7 +5,7 @@
    par des événements dédiés réservés à l'Hôte/l'Admin. C'est ce qui ferme
    les failles "solde modifiable par n'importe qui" et "role auto-déclaré". */
 import { getDb, newId } from "../db.js";
-import { isHoteOrAdmin, isPlayer } from "../auth.js";
+import { isHoteOrAdmin, isPlayer, isAdmin } from "../auth.js";
 import { serializeCard, serializeTransaction } from "../serialize.js";
 import { logAction } from "./logs.js";
 import { broadcastLeaderboard } from "./logs.js";
@@ -271,6 +271,25 @@ export function registerCardHandlers(io, socket){
     }catch(e){ cb?.({ ok: false, error: e.message }); }
   });
   socket.on("profit:unsubscribe", () => socket.leave("profit"));
+
+  /* Bouton de secours en cas de souci ("les calculs sont faux") : remet le
+     compteur de profit affiché à 0 sans toucher au solde des cartes ni à
+     l'historique des transactions — uniquement le compteur agrégé. */
+  socket.on("stats:resetProfit", async (_payload, cb) => {
+    try{
+      if(!isAdmin(socket.session)) return cb?.({ ok: false, error: "Réservé à l'Intendance." });
+      const db = await getDb();
+      await db.collection("stats").updateOne(
+        { _id: "global" }, { $set: { casinoProfitTokens: 0 } }, { upsert: true }
+      );
+      await logAction({
+        action: "STATS_RESET", detail: "Compteur de profit de l'Intendance réinitialisé à 0",
+        staffId: socket.session.staffId, staffName: socket.session.name
+      });
+      broadcastProfit();
+      cb?.({ ok: true });
+    }catch(e){ cb?.({ ok: false, error: e.message }); }
+  });
 
   socket.on("transactions:subscribe", async (_payload, cb) => {
     try{
